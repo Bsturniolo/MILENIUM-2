@@ -8,11 +8,13 @@ Toma las ideas de un sistema de gestión de estaciones de servicio de los años 
 
 | Sección | Qué se puede hacer |
 | --- | --- |
-| Vender | Buscar por nombre o escanear código de barras, armar el ticket, elegir medio de pago (efectivo con vuelto, débito, crédito, transferencia, QR Mercado Pago) y cobrar |
+| Vender | Buscar por nombre o escanear código de barras, armar el ticket, elegir medio de pago (efectivo con vuelto, débito, crédito, transferencia, QR Mercado Pago) y cobrar. Elegir cliente, guardar presupuesto o hacer remito a cuenta corriente |
 | Productos | Alta, edición y baja; varios códigos de barra por producto, rubro, costo, precio, IVA, stock mínimo, venta por peso |
-| Stock | Ingreso de mercadería del proveedor (actualiza costo), ajustes de inventario con motivo, productos para reponer y kardex de movimientos |
+| Stock | Ajustes de inventario con motivo, productos para reponer y kardex de movimientos |
+| Clientes | Clientes con CUIT/DNI y límite de crédito; cuenta corriente (remitos suman, pagos restan); presupuestos (pasan al ticket) y remitos, con impresión y anulación |
+| Compras | Proveedores con cuenta corriente; compras de varios productos (suman stock, actualizan costo) pagadas al contado o a cuenta; pagos a proveedores |
 | Equipos | Alta de máquinas (lavarropas, cafeteras, aspiradoras, etc.) con precio por uso o por minuto; cobrar y activar (el pago con QR de Mercado Pago está simulado), cuenta regresiva, detener, fuera de servicio, usos y recaudación del día |
-| Caja | Apertura de turno con efectivo inicial, gastos y retiros, cierre con efectivo contado y diferencia calculada |
+| Caja | Apertura de turno con efectivo inicial, gastos y retiros, cobros de cuenta corriente y pagos a proveedores en efectivo, cierre con efectivo contado y diferencia calculada |
 | Reportes | Ventas, facturado, ganancia y ticket promedio por día, semana o mes; productos más vendidos; anulación de ventas (devuelve el stock) |
 
 ## Cómo usarlo

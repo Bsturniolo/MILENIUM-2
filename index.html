@@ -101,6 +101,9 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--sunk)}
 code{font-family:var(--f-mono);font-size:.92em;background:var(--sunk);padding:1px 5px;border-radius:4px}
 .qrbox{display:flex;gap:12px;align-items:center}
 .qrfake{width:76px;height:76px;flex:none;border-radius:6px;background:repeating-conic-gradient(var(--ink) 0 25%,var(--surface) 0 50%) 0 0/19px 19px;border:4px solid var(--surface);outline:1px solid var(--line)}
+#imprimir{display:none}
+@media print{.wrap,#toast{display:none!important}#imprimir{display:block;color:#000;font:14px/1.5 system-ui,sans-serif}#imprimir table{width:100%;border-collapse:collapse}#imprimir th,#imprimir td{border-bottom:1px solid #999;padding:4px 6px;text-align:left}#imprimir .r{text-align:right}}
+tr.sel td{background:var(--accent-soft,rgba(0,0,0,.05))}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -112,18 +115,19 @@ code{font-family:var(--f-mono);font-size:.92em;background:var(--sunk);padding:1p
     <div class="row"><span id="estadoTurno" class="pill off">Cargando…</span><span id="estadoDatos" class="tiny muted"></span></div>
   </header>
   <nav class="tabs" aria-label="Secciones">
-    <a href="#vender">Vender</a><a href="#productos">Productos</a><a href="#stock">Stock</a><a href="#equipos">Equipos</a><a href="#caja">Caja</a><a href="#reportes">Reportes</a>
+    <a href="#vender">Vender</a><a href="#productos">Productos</a><a href="#stock">Stock</a><a href="#clientes">Clientes</a><a href="#compras">Compras</a><a href="#equipos">Equipos</a><a href="#caja">Caja</a><a href="#reportes">Reportes</a>
   </nav>
   <div id="aviso"></div>
   <main id="vista"></main>
 </div>
 <div id="toast" hidden></div>
+<div id="imprimir"></div>
 
 <script>
 (() => {
 'use strict';
 // ---------- estado ----------
-const S = { equipos: [], eqPago: null, eqEdit: null, eqNuevo: false, productos: [], ventas: [], movs: [], turnos: [], contadores: {}, carrito: [], pago: 'Efectivo', buscar: '', filtroProd: '', kardexProd: '', rango: 'hoy', editId: null, confirm: null, loaded: false, db: null, prodForm: null };
+const S = { equipos: [], eqPago: null, eqEdit: null, eqNuevo: false, productos: [], ventas: [], movs: [], turnos: [], contadores: {}, carrito: [], pago: 'Efectivo', buscar: '', filtroProd: '', kardexProd: '', rango: 'hoy', editId: null, confirm: null, loaded: false, db: null, prodForm: null, clientes: [], ctacte: [], presupuestos: [], remitos: [], proveedores: [], compras: [], ctaprov: [], clienteVenta: '', presupuestoOrigen: null, cliTab: 'clientes', cliSel: null, cliEdit: null, filtroCli: '', cprTab: 'nueva', compraLineas: [], compraCab: { prov: '', comp: '', pago: 'A cuenta corriente' }, provSel: null, provEdit: null };
 const MEDIOS = ['Efectivo', 'Débito', 'Crédito', 'Transferencia', 'QR Mercado Pago'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -138,10 +142,16 @@ const turnoAbierto = () => S.turnos.find(t => t.estado === 'abierto');
 const activos = () => S.productos.filter(p => p.activo !== false).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 
 // ---------- vistas ----------
-const vistas = ['vender', 'productos', 'stock', 'equipos', 'caja', 'reportes'];
+const vistas = ['vender', 'productos', 'stock', 'clientes', 'compras', 'equipos', 'caja', 'reportes'];
 const vistaActual = () => { const h = location.hash.slice(1); return vistas.includes(h) ? h : 'vender'; };
 
 function render() {
+  // Si se pide dibujar mientras se está dibujando (un campo que pierde el foco), se deja para después.
+  if (render.ocupado) { clearTimeout(render.h); render.h = setTimeout(render, 0); return; }
+  render.ocupado = true;
+  try { dibujar(); } finally { render.ocupado = false; }
+}
+function dibujar() {
   const v = vistaActual();
   document.querySelectorAll('nav.tabs a').forEach(a => a.setAttribute('aria-current', a.getAttribute('href') === '#' + v ? 'page' : 'false'));
   const t = turnoAbierto();
@@ -151,7 +161,7 @@ function render() {
   else { et.className = 'pill off'; et.textContent = 'Caja cerrada'; }
   const focused = document.activeElement && document.activeElement.id;
   const caret = focused && document.activeElement.selectionStart;
-  $('#vista').innerHTML = ({ vender: vVender, productos: vProductos, stock: vStock, equipos: vEquipos, caja: vCaja, reportes: vReportes })[v]();
+  $('#vista').innerHTML = ({ vender: vVender, productos: vProductos, stock: vStock, clientes: vClientes, compras: vCompras, equipos: vEquipos, caja: vCaja, reportes: vReportes })[v]();
   if (focused) { const el = document.getElementById(focused); if (el) { el.focus(); try { if (caret != null) el.setSelectionRange(caret, caret); } catch (e) {} } }
 }
 
@@ -189,11 +199,14 @@ function vVender() {
     </tbody></table></div>` : '<div class="empty">Escaneá o buscá un producto para empezar la venta.</div>'}
     <div class="total"><span>Total</span><strong>${fmt(total)}</strong></div>
     <div class="stack" style="margin-top:14px;gap:12px">
+      ${S.presupuestoOrigen ? `<div class="notice">Cargado del presupuesto N° ${nro((S.presupuestos.find(p => p.id === S.presupuestoOrigen) || {}).numero)}.</div>` : ''}
+      <label>Cliente<select id="ventaCli"><option value="">Consumidor final</option>${clientesActivos().map(c => `<option value="${c.id}" ${S.clienteVenta === c.id ? 'selected' : ''}>${esc(c.nombre)}</option>`).join('')}</select></label>
+      ${S.clienteVenta && cli(S.clienteVenta) ? `<span class="tiny muted" style="margin-top:-6px">Debe ${fmt(Math.max(0, saldoCli(S.clienteVenta)))}${cli(S.clienteVenta).limite > 0 ? ' · límite ' + fmt(cli(S.clienteVenta).limite) : ''}</span>` : ''}
       <div class="chips" role="group" aria-label="Medio de pago">${MEDIOS.map(m => `<button class="chip" data-pago="${m}" aria-pressed="${S.pago === m}">${m}</button>`).join('')}</div>
       ${S.pago === 'Efectivo' ? `<div class="row"><label style="flex:1">Paga con<input id="pagaCon" type="number" min="0" step="0.01" inputmode="decimal" value="${pagaCon || ''}"></label><div style="flex:1"><span class="tiny muted">Vuelto</span><div class="money" style="font-size:20px">${pagaCon > total ? fmt(pagaCon - total) : '—'}</div></div></div>` : ''}
       ${!t && S.loaded ? '<div class="notice">Para cobrar, primero abrí la caja en la pestaña <a href="#caja">Caja</a>.</div>' : ''}
       <button class="primary big" id="cobrar" ${!S.carrito.length || !t ? 'disabled' : ''}>Cobrar ${S.carrito.length ? fmt(total) : ''}</button>
-      ${S.carrito.length ? '<button id="vaciar">Cancelar venta</button>' : ''}
+      ${S.carrito.length ? `<div class="row"><button id="guardarPresu">Guardar presupuesto</button><button id="hacerRemito" ${!S.clienteVenta ? 'disabled title="Elegí el cliente"' : ''}>Remito a cuenta corriente</button></div><button id="vaciar">Cancelar venta</button>` : ''}
     </div>
   </aside></div>`;
 }
@@ -222,9 +235,11 @@ async function cobrar() {
   const ts = Date.now();
   try {
     await S.db.doc('config/contadores').set({ ...S.contadores, venta: numero });
-    const ref = await S.db.collection('ventas').add({ numero, ts, items, total, costo, pago: S.pago, turnoId: t.id, anulada: false });
+    const c = cli(S.clienteVenta);
+    const ref = await S.db.collection('ventas').add({ numero, ts, items, total, costo, pago: S.pago, turnoId: t.id, anulada: false, clienteId: c ? c.id : '', clienteNombre: c ? c.nombre : '' });
+    if (S.presupuestoOrigen) await S.db.doc('presupuestos/' + S.presupuestoOrigen).update({ estado: 'vendido', ventaId: ref.id });
     await moverStock(items.map(i => ({ productoId: i.productoId, nombre: i.nombre, cant: -i.cant })), 'Venta', 'Venta N° ' + numero, ref.id, ts);
-    S.carrito = []; S.buscar = ''; render(); toast('Venta N° ' + numero + ' cobrada: ' + fmt(total));
+    S.carrito = []; S.buscar = ''; S.presupuestoOrigen = null; S.clienteVenta = ''; render(); toast('Venta N° ' + numero + ' cobrada: ' + fmt(total));
   } catch (e) { fallo(e); render(); }
 }
 // Cambia stock de varios productos y deja una línea en el kardex.
@@ -310,15 +325,8 @@ function vStock() {
   const movs = S.movs.filter(m => !S.kardexProd || (m.lineas || []).some(l => l.productoId === S.kardexProd)).slice(0, 150);
   const bajo = ps.filter(p => p.controlaStock !== false && (p.stock || 0) <= (p.minimo || 0));
   return `<div class="grid3">
-  <section class="panel"><h2>Ingreso de mercadería</h2><p class="tiny muted" style="margin-top:-6px">Lo que llega del proveedor. Suma stock y actualiza el costo.</p>
-    <form id="compraForm" class="form">
-      <label class="full">Producto<select id="cp_prod" required><option value="">Elegí un producto</option>${opts('')}</select></label>
-      <label>Cantidad<input id="cp_cant" type="number" min="0.001" step="0.001" required></label>
-      <label>Costo unitario nuevo ($)<input id="cp_costo" type="number" min="0" step="0.01" placeholder="Igual que antes"></label>
-      <label>Proveedor<input id="cp_prov"></label>
-      <label>Factura o remito N°<input id="cp_comp"></label>
-      <div class="full"><button class="primary" type="submit">Registrar ingreso</button></div>
-    </form></section>
+  <section class="panel"><h2>Ingreso de mercadería</h2><p class="muted" style="margin-top:-6px">Lo que llega del proveedor se carga en <a href="#compras">Compras</a>: suma el stock, actualiza el costo y queda la deuda con el proveedor.</p>
+    <p style="margin:0"><a href="#compras">Ir a Compras →</a></p></section>
   <section class="panel"><h2>Ajuste de inventario</h2><p class="tiny muted" style="margin-top:-6px">Cuando contás y no coincide: roturas, vencidos, diferencias.</p>
     <form id="ajusteForm" class="form">
       <label class="full">Producto<select id="aj_prod" required><option value="">Elegí un producto</option>${opts('')}</select></label>
@@ -336,17 +344,6 @@ function vStock() {
       <td class="r num">${l.cant > 0 ? fq(l.cant) : ''}</td><td class="r num">${l.cant < 0 ? fq(-l.cant) : ''}</td><td class="r num">${fq(l.saldo)}</td><td class="tiny muted">${esc(m.detalle)}</td></tr>`)).join('')}
     </tbody></table></div>` : '<div class="empty">Cada venta, ingreso o ajuste queda anotado acá con su motivo.</div>'}
   </section>`;
-}
-async function registrarCompra() {
-  const id = $('#cp_prod').value, cant = r3($('#cp_cant').value), costoN = $('#cp_costo').value;
-  const p = prod(id); if (!p || !(cant > 0)) return toast('Elegí un producto y una cantidad');
-  const prov = $('#cp_prov').value.trim(), comp = $('#cp_comp').value.trim();
-  try {
-    if (costoN !== '' && r2(costoN) !== p.costo) { await S.db.collection('auditoria').add({ ts: Date.now(), detalle: `Costo de ${p.nombre} por ingreso`, antes: fmt(p.costo), despues: fmt(costoN) }); await S.db.doc('productos/' + id).update({ costo: r2(costoN) }); p.costo = r2(costoN); }
-    if (p.controlaStock === false) { toast('Ese producto no controla stock; se actualizó solo el costo'); return; }
-    await moverStock([{ productoId: id, nombre: p.nombre, cant }], 'Ingreso', [prov && 'Proveedor ' + prov, comp && 'Comp. ' + comp].filter(Boolean).join(' · ') || 'Ingreso de mercadería');
-    toast('Ingresaron ' + fq(cant) + ' de ' + p.nombre); render();
-  } catch (e) { fallo(e); }
 }
 async function guardarAjuste() {
   const id = $('#aj_prod').value, real = $('#aj_real').value, mot = $('#aj_mot').value;
@@ -577,6 +574,245 @@ setInterval(() => {
   document.querySelectorAll('.countdown,.countdown-sm').forEach(el => { el.textContent = mmss(Math.max(0, Number(el.dataset.fin) - Date.now())); });
 }, 1000);
 
+// ----- Clientes, cuenta corriente, presupuestos y remitos -----
+const cli = id => S.clientes.find(c => c.id === id);
+const clientesActivos = () => S.clientes.filter(c => c.activo !== false).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+const saldoCli = id => r2(S.ctacte.filter(m => m.clienteId === id).reduce((s, m) => s + (m.importe || 0), 0));
+const nro = n => String(n || 0).padStart(4, '0');
+const fechaC = ts => new Date(ts).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+const itemsCarrito = () => S.carrito.filter(i => i.cant > 0).map(i => ({ productoId: i.productoId, nombre: i.nombre, cant: r3(i.cant), precio: i.precio, costo: i.costo }));
+const sumar = (items, k) => r2(items.reduce((s, i) => s + i[k] * i.cant, 0));
+async function siguiente(clave) {
+  const n = (S.contadores[clave] || 0) + 1;
+  S.contadores = { ...S.contadores, [clave]: n };
+  await S.db.doc('config/contadores').set(S.contadores);
+  return n;
+}
+function estadoPresu(p) { return p.estado === 'pendiente' && Date.now() > (p.validoHasta || 0) ? 'vencido' : p.estado; }
+
+async function guardarPresupuesto() {
+  const items = itemsCarrito(); if (!items.length) return;
+  const c = cli(S.clienteVenta);
+  try {
+    const numero = await siguiente('presupuesto'), ts = Date.now();
+    await S.db.collection('presupuestos').add({ numero, ts, clienteId: c ? c.id : '', clienteNombre: c ? c.nombre : 'Consumidor final', items, total: sumar(items, 'precio'), estado: 'pendiente', validoHasta: ts + 15 * 864e5 });
+    S.carrito = []; S.presupuestoOrigen = null; render(); toast('Presupuesto N° ' + nro(numero) + ' guardado (vale 15 días)');
+  } catch (e) { fallo(e); }
+}
+async function hacerRemito() {
+  const items = itemsCarrito(); const c = cli(S.clienteVenta);
+  if (!items.length) return;
+  if (!c) return toast('Para hacer un remito elegí el cliente');
+  const total = sumar(items, 'precio'), saldo = saldoCli(c.id);
+  if (c.limite > 0 && saldo + total > c.limite) return toast(`${c.nombre} pasaría su límite de ${fmt(c.limite)} (debe ${fmt(saldo)})`);
+  try {
+    const numero = await siguiente('remito'), ts = Date.now();
+    const ref = await S.db.collection('remitos').add({ numero, ts, clienteId: c.id, clienteNombre: c.nombre, items, total, costo: sumar(items, 'costo'), anulado: false, presupuestoId: S.presupuestoOrigen || '' });
+    await S.db.collection('ctacte').add({ ts, clienteId: c.id, tipo: 'Remito', detalle: 'Remito N° ' + nro(numero), importe: total, ref: ref.id });
+    await moverStock(items.map(i => ({ productoId: i.productoId, nombre: i.nombre, cant: -i.cant })), 'Remito', `Remito N° ${nro(numero)} · ${c.nombre}`, ref.id, ts);
+    if (S.presupuestoOrigen) await S.db.doc('presupuestos/' + S.presupuestoOrigen).update({ estado: 'remitido', remitoId: ref.id });
+    S.carrito = []; S.presupuestoOrigen = null; render(); toast(`Remito N° ${nro(numero)}: ${fmt(total)} a la cuenta de ${c.nombre}`);
+  } catch (e) { fallo(e); }
+}
+function presuAlTicket(id) {
+  const p = S.presupuestos.find(x => x.id === id); if (!p) return;
+  S.carrito = p.items.map(i => { const pr = prod(i.productoId); return { ...i, costo: pr ? r2(pr.costo) : i.costo, porPeso: !!(pr && pr.porPeso) }; });
+  S.clienteVenta = p.clienteId || ''; S.presupuestoOrigen = p.id;
+  location.hash = 'vender'; render(); toast('Presupuesto N° ' + nro(p.numero) + ' cargado en el ticket');
+}
+async function anularRemito(id) {
+  const r = S.remitos.find(x => x.id === id); if (!r || r.anulado) return;
+  try {
+    await S.db.doc('remitos/' + id).update({ anulado: true, anuladoTs: Date.now() });
+    await S.db.collection('ctacte').add({ ts: Date.now(), clienteId: r.clienteId, tipo: 'Anulación', detalle: 'Anula remito N° ' + nro(r.numero), importe: -r.total, ref: id });
+    await moverStock(r.items.map(i => ({ productoId: i.productoId, nombre: i.nombre, cant: i.cant })), 'Anulación', 'Anula remito N° ' + nro(r.numero), id);
+    S.confirm = null; toast('Remito N° ' + nro(r.numero) + ' anulado'); render();
+  } catch (e) { fallo(e); }
+}
+async function guardarCliente() {
+  const v = id => ($('#' + id) || {}).value || '';
+  const nombre = v('cf_nombre').trim(); if (!nombre) return toast('Falta el nombre del cliente');
+  const doc = v('cf_doc').trim();
+  if (doc && S.clientes.some(c => c.id !== S.cliEdit && c.activo !== false && c.doc === doc)) return toast('Ya hay un cliente con ese CUIT o DNI');
+  const data = { nombre, doc, tel: v('cf_tel').trim(), dir: v('cf_dir').trim(), limite: r2(v('cf_limite')), activo: true };
+  if (S.cliEdit === 'nuevo') { const ref = await S.db.collection('clientes').add({ ...data, creado: Date.now() }); S.cliSel = ref.id; toast('Cliente agregado'); }
+  else { await S.db.doc('clientes/' + S.cliEdit).update(data); toast('Guardado'); }
+  S.cliEdit = null; render();
+}
+async function pagoCliente() {
+  const c = cli(S.cliSel); const monto = r2($('#pc_monto').value), medio = $('#pc_medio').value, t = turnoAbierto();
+  if (!c || !(monto > 0)) return toast('Escribí el monto que paga');
+  if (medio === 'Efectivo' && !t) return toast('Para cobrar en efectivo abrí la caja');
+  const numero = await siguiente('recibo');
+  await S.db.collection('ctacte').add({ ts: Date.now(), clienteId: c.id, tipo: 'Pago', detalle: `Recibo N° ${nro(numero)} · ${medio}`, importe: -monto, medio, turnoId: t ? t.id : '', numero });
+  toast(`${c.nombre} pagó ${fmt(monto)}`); render();
+}
+
+function vClientes() {
+  const tabs = [['clientes', 'Clientes'], ['presupuestos', 'Presupuestos'], ['remitos', 'Remitos']];
+  const sub = `<div class="chips" role="tablist" style="margin-bottom:16px">${tabs.map(([k, l]) => `<button class="chip" role="tab" data-cli-tab="${k}" aria-pressed="${S.cliTab === k}">${l}</button>`).join('')}</div>`;
+  return sub + (S.cliTab === 'presupuestos' ? vPresupuestos() : S.cliTab === 'remitos' ? vRemitos() : vListaClientes());
+}
+function vListaClientes() {
+  const q = S.filtroCli.trim().toLowerCase();
+  const lista = clientesActivos().filter(c => !q || c.nombre.toLowerCase().includes(q) || (c.doc || '').includes(q));
+  const deben = r2(clientesActivos().reduce((s, c) => s + Math.max(0, saldoCli(c.id)), 0));
+  const c = S.cliSel ? cli(S.cliSel) : null;
+  let der;
+  if (S.cliEdit) {
+    const e = S.cliEdit === 'nuevo' ? {} : cli(S.cliEdit) || {};
+    der = `<section class="panel"><h2>${S.cliEdit === 'nuevo' ? 'Nuevo cliente' : 'Editar cliente'}</h2><form id="cliForm" class="form">
+      <label class="full">Nombre o razón social<input id="cf_nombre" required value="${esc(e.nombre)}"></label>
+      <label>CUIT o DNI<input id="cf_doc" inputmode="numeric" value="${esc(e.doc)}"></label><label>Teléfono<input id="cf_tel" inputmode="tel" value="${esc(e.tel)}"></label>
+      <label class="full">Dirección<input id="cf_dir" value="${esc(e.dir)}"></label>
+      <label>Límite de cuenta corriente ($)<input id="cf_limite" type="number" min="0" step="0.01" value="${esc(e.limite || '')}" placeholder="Sin límite"></label>
+      <div class="row full"><button class="primary" type="submit">${S.cliEdit === 'nuevo' ? 'Agregar cliente' : 'Guardar'}</button><button type="button" data-cli-cancel>Cancelar</button></div></form></section>`;
+  } else if (c) {
+    const saldo = saldoCli(c.id);
+    const movs = S.ctacte.filter(m => m.clienteId === c.id).sort((a, b) => a.ts - b.ts);
+    let corr = 0; const filas = movs.map(m => { corr = r2(corr + m.importe); return { ...m, saldo: corr }; }).reverse().slice(0, 80);
+    der = `<section class="stack"><div class="panel"><div class="row" style="justify-content:space-between"><div><h2 style="margin:0">${esc(c.nombre)}</h2><span class="tiny muted">${[c.doc && 'CUIT/DNI ' + esc(c.doc), c.tel && esc(c.tel), c.dir && esc(c.dir)].filter(Boolean).join(' · ') || 'Sin datos de contacto'}</span></div><button class="small" data-cli-editar="${c.id}">Editar</button></div>
+      <div class="kpis" style="margin:14px 0 0"><div class="kpi"><span>${saldo > 0 ? 'Debe' : saldo < 0 ? 'Saldo a favor' : 'Saldo'}</span><b class="${saldo > 0 ? 'neg' : ''}">${fmt(Math.abs(saldo))}</b></div><div class="kpi"><span>Límite</span><b>${c.limite > 0 ? fmt(c.limite) : 'Sin límite'}</b></div></div></div>
+      <div class="panel"><h2>Registrar un pago</h2><form id="pagoCliForm" class="form"><label>Monto ($)<input id="pc_monto" type="number" min="0.01" step="0.01" inputmode="decimal" required value="${saldo > 0 ? saldo : ''}"></label>
+        <label>Medio<select id="pc_medio">${MEDIOS.map(m => `<option>${m}</option>`).join('')}</select></label><div class="full"><button class="primary" type="submit">Registrar pago</button></div></form>
+        <p class="tiny muted" style="margin-bottom:0">El pago en efectivo entra en la caja del turno abierto.</p></div>
+      <div class="panel"><h2>Cuenta corriente</h2>${filas.length ? `<div class="tablebox"><table><thead><tr><th>Fecha</th><th>Detalle</th><th class="r">Debe</th><th class="r">Haber</th><th class="r">Saldo</th></tr></thead><tbody>
+        ${filas.map(m => `<tr><td class="num" style="white-space:nowrap">${fechaC(m.ts)}</td><td>${esc(m.detalle)}</td><td class="r money">${m.importe > 0 ? fmt(m.importe) : ''}</td><td class="r money">${m.importe < 0 ? fmt(-m.importe) : ''}</td><td class="r money">${fmt(m.saldo)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Sin movimientos. Los remitos suman deuda y los pagos la bajan.</p>'}</div></section>`;
+  } else der = `<section class="panel"><h2>Cuenta corriente</h2><p class="muted">Elegí un cliente para ver lo que debe, sus remitos y pagos, o cargá uno nuevo.</p><p class="tiny muted">Para venderle a cuenta: en Vender elegí el cliente y tocá "Remito a cuenta corriente".</p></section>`;
+  return `<div class="grid2"><section class="panel"><div class="row" style="justify-content:space-between;margin-bottom:10px"><h2 style="margin:0">Clientes <span class="tag">${lista.length}</span></h2><button class="primary" data-cli-nuevo>Nuevo cliente</button></div>
+    <input id="filtroCli" placeholder="Buscar por nombre o CUIT" value="${esc(S.filtroCli)}" aria-label="Buscar cliente" style="margin-bottom:10px">
+    <p class="tiny muted" style="margin:0 0 8px">Entre todos deben <b class="money">${fmt(deben)}</b></p>
+    ${lista.length ? `<div class="tablebox"><table><thead><tr><th>Cliente</th><th>Teléfono</th><th class="r">Saldo</th></tr></thead><tbody>${lista.map(x => { const s = saldoCli(x.id); return `<tr class="click${S.cliSel === x.id ? ' sel' : ''}" data-cli-ver="${x.id}" tabindex="0"><td>${esc(x.nombre)}<br><span class="tiny muted">${esc(x.doc || '')}</span></td><td>${esc(x.tel || '—')}</td><td class="r">${s > 0 ? `<span class="tag bad money">${fmt(s)}</span>` : `<span class="money">${fmt(s)}</span>`}</td></tr>`; }).join('')}</tbody></table></div>`
+      : `<div class="empty">${S.loaded ? 'Todavía no hay clientes.' : 'Cargando…'}</div>`}</section>${der}</div>`;
+}
+function vPresupuestos() {
+  const lista = S.presupuestos.slice(0, 100);
+  const tag = { pendiente: 'acc', vencido: 'warn', vendido: 'good', remitido: 'good', anulado: 'bad' };
+  return `<section class="panel"><h2>Presupuestos</h2><p class="tiny muted" style="margin-top:-6px">Se arman en Vender con "Guardar presupuesto". No mueven stock. Valen 15 días.</p>
+  ${lista.length ? `<div class="tablebox"><table><thead><tr><th>N°</th><th>Fecha</th><th>Cliente</th><th class="r">Total</th><th>Estado</th><th></th></tr></thead><tbody>${lista.map(p => { const e = estadoPresu(p); return `<tr><td class="num">${nro(p.numero)}</td><td class="num">${fecha(p.ts)}<br><span class="tiny muted">${esc(p.items.map(i => fq(i.cant) + ' ' + i.nombre).join(', '))}</span></td><td>${esc(p.clienteNombre)}</td><td class="r money">${fmt(p.total)}</td><td><span class="tag ${tag[e] || ''}">${e}</span></td>
+    <td><div class="row" style="gap:6px;flex-wrap:nowrap">${e === 'pendiente' || e === 'vencido' ? `<button class="small" data-pre-ticket="${p.id}">Pasar al ticket</button>` : ''}<button class="small" data-imprimir="presupuesto:${p.id}">Imprimir</button>${e === 'pendiente' || e === 'vencido' ? `<button class="small" data-pre-anular="${p.id}">Anular</button>` : ''}</div></td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty">Todavía no hay presupuestos.</div>'}</section>`;
+}
+function vRemitos() {
+  const lista = S.remitos.slice(0, 100);
+  return `<section class="panel"><h2>Remitos</h2><p class="tiny muted" style="margin-top:-6px">Mercadería entregada a cuenta: baja el stock y suma a lo que debe el cliente.</p>
+  ${lista.length ? `<div class="tablebox"><table><thead><tr><th>N°</th><th>Fecha</th><th>Cliente</th><th class="r">Total</th><th></th></tr></thead><tbody>${lista.map(r => `<tr><td class="num">${nro(r.numero)}</td><td class="num">${fecha(r.ts)}<br><span class="tiny muted">${esc(r.items.map(i => fq(i.cant) + ' ' + i.nombre).join(', '))}</span></td><td>${esc(r.clienteNombre)}</td><td class="r money">${r.anulado ? `<s>${fmt(r.total)}</s>` : fmt(r.total)}</td>
+    <td><div class="row" style="gap:6px;flex-wrap:nowrap"><button class="small" data-imprimir="remito:${r.id}">Imprimir</button>${r.anulado ? '<span class="tag bad">anulado</span>' : `<button class="small" data-rem-anular="${r.id}">Anular</button>`}</div></td></tr>
+    ${S.confirm && S.confirm.tipo === 'remito' && S.confirm.id === r.id ? `<tr><td colspan="5"><div class="confirm">¿Anular el remito N° ${nro(r.numero)}? El stock vuelve y se descuenta de la cuenta de ${esc(r.clienteNombre)}. <button class="small danger" id="okRemAnular">Sí, anular</button><button class="small" data-cancel>No</button></div></td></tr>` : ''}`).join('')}</tbody></table></div>` : '<div class="empty">Todavía no hay remitos.</div>'}</section>`;
+}
+function imprimir(tipo, id) {
+  const d = (tipo === 'remito' ? S.remitos : S.presupuestos).find(x => x.id === id); if (!d) return;
+  const c = cli(d.clienteId) || {};
+  $('#imprimir').innerHTML = `<h1>${tipo === 'remito' ? 'Remito' : 'Presupuesto'} N° ${nro(d.numero)}</h1><p>Fecha: ${new Date(d.ts).toLocaleDateString('es-AR')}${tipo === 'presupuesto' ? ' · Válido hasta ' + new Date(d.validoHasta).toLocaleDateString('es-AR') : ''}</p>
+    <p><b>${esc(d.clienteNombre)}</b>${c.doc ? '<br>CUIT/DNI ' + esc(c.doc) : ''}${c.dir ? '<br>' + esc(c.dir) : ''}</p>
+    <table><thead><tr><th>Cant.</th><th>Producto</th><th class="r">Precio</th><th class="r">Importe</th></tr></thead><tbody>${d.items.map(i => `<tr><td>${fq(i.cant)}</td><td>${esc(i.nombre)}</td><td class="r">${fmt(i.precio)}</td><td class="r">${fmt(i.precio * i.cant)}</td></tr>`).join('')}</tbody></table>
+    <p class="r"><b>Total ${fmt(d.total)}</b></p>${tipo === 'remito' ? '<p style="margin-top:48px">Recibí conforme: ______________________</p>' : ''}<p class="tiny">Documento no válido como factura.</p>`;
+  window.print();
+}
+
+// ----- Compras y proveedores -----
+const prove = id => S.proveedores.find(p => p.id === id);
+const proveedoresActivos = () => S.proveedores.filter(p => p.activo !== false).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+const saldoProv = id => r2(S.ctaprov.filter(m => m.proveedorId === id).reduce((s, m) => s + (m.importe || 0), 0));
+const PAGO_COMPRA = ['A cuenta corriente', ...MEDIOS.filter(m => m !== 'QR Mercado Pago')];
+
+function vCompras() {
+  const tabs = [['nueva', 'Nueva compra'], ['compras', 'Compras'], ['proveedores', 'Proveedores']];
+  const sub = `<div class="chips" role="tablist" style="margin-bottom:16px">${tabs.map(([k, l]) => `<button class="chip" role="tab" data-cpr-tab="${k}" aria-pressed="${S.cprTab === k}">${l}</button>`).join('')}</div>`;
+  return sub + (S.cprTab === 'compras' ? vListaCompras() : S.cprTab === 'proveedores' ? vProveedores() : vNuevaCompra());
+}
+function vNuevaCompra() {
+  const L = S.compraLineas, h = S.compraCab, total = sumar(L, 'costo');
+  const provs = proveedoresActivos();
+  return `<div class="grid2"><section class="panel"><h2>Agregar productos</h2>
+    <form id="cprLineaForm" class="form"><label class="full">Producto<select id="cl_prod" required><option value="">Elegí un producto</option>${activos().map(p => `<option value="${p.id}">${esc(p.nombre)}</option>`).join('')}</select></label>
+      <label>Cantidad<input id="cl_cant" type="number" min="0.001" step="0.001" required></label><label>Costo unitario ($)<input id="cl_costo" type="number" min="0" step="0.01" placeholder="El de siempre"></label>
+      <div class="full"><button type="submit">Agregar a la compra</button></div></form>
+    <p class="tiny muted">Si el costo cambió, se actualiza en el producto y queda anotado. El precio de venta no se toca.</p></section>
+  <section class="ticket"><h2>Compra</h2>
+    ${L.length ? `<div class="tablebox"><table><thead><tr><th>Producto</th><th class="r">Cant.</th><th class="r">Costo</th><th class="r">Importe</th><th></th></tr></thead><tbody>${L.map((l, k) => `<tr><td>${esc(l.nombre)}</td><td class="r num">${fq(l.cant)}</td><td class="r money">${fmt(l.costo)}</td><td class="r money">${fmt(l.costo * l.cant)}</td><td><button class="small" data-cpr-quitar="${k}" aria-label="Quitar ${esc(l.nombre)}">✕</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">Agregá los productos que llegaron.</div>'}
+    <div class="total"><span>Total</span><strong>${fmt(total)}</strong></div>
+    <div class="form" style="margin-top:12px"><label class="full">Proveedor<select id="cpr_prov"><option value="">Elegí el proveedor</option>${provs.map(p => `<option value="${p.id}" ${h.prov === p.id ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('')}</select></label>
+      ${!provs.length ? '<p class="tiny muted full" style="margin:0">Primero cargá un proveedor en la pestaña <a href="#compras" data-cpr-tab="proveedores">Proveedores</a>.</p>' : ''}
+      <label>Factura o remito N°<input id="cpr_comp" value="${esc(h.comp)}"></label>
+      <label>Forma de pago<select id="cpr_pago">${PAGO_COMPRA.map(m => `<option ${h.pago === m ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
+      ${h.pago === 'Efectivo' ? '<p class="tiny muted full" style="margin:0">Sale de la caja del turno abierto.</p>' : ''}
+      <div class="row full"><button class="primary" id="registrarCompra" ${!L.length || !h.prov ? 'disabled' : ''}>Registrar compra</button>${L.length ? '<button id="vaciarCompra">Empezar de nuevo</button>' : ''}</div></div></section></div>`;
+}
+async function registrarCompraNueva() {
+  const L = S.compraLineas, h = S.compraCab, p = prove(h.prov), t = turnoAbierto();
+  if (!L.length || !p) return toast('Elegí el proveedor y agregá productos');
+  if (h.pago === 'Efectivo' && !t) return toast('Para pagar en efectivo abrí la caja');
+  const total = sumar(L, 'costo');
+  try {
+    const numero = await siguiente('compra'), ts = Date.now();
+    const ref = await S.db.collection('compras').add({ numero, ts, proveedorId: p.id, proveedorNombre: p.nombre, comprobante: h.comp.trim(), items: L, total, pago: h.pago, anulada: false });
+    for (const l of L) { const pr = prod(l.productoId); if (pr && r2(pr.costo) !== l.costo) { await S.db.collection('auditoria').add({ ts, detalle: `Costo de ${pr.nombre} por compra N° ${nro(numero)}`, antes: fmt(pr.costo), despues: fmt(l.costo) }); await S.db.doc('productos/' + pr.id).update({ costo: l.costo }); pr.costo = l.costo; } }
+    await moverStock(L.map(l => ({ productoId: l.productoId, nombre: l.nombre, cant: l.cant })), 'Ingreso', [`Compra N° ${nro(numero)}`, p.nombre, h.comp && 'Comp. ' + h.comp].filter(Boolean).join(' · '), ref.id, ts);
+    await S.db.collection('ctaprov').add({ ts, proveedorId: p.id, tipo: 'Compra', detalle: `Compra N° ${nro(numero)}${h.comp ? ' · Comp. ' + h.comp : ''}`, importe: total, ref: ref.id });
+    if (h.pago !== 'A cuenta corriente') await S.db.collection('ctaprov').add({ ts: ts + 1, proveedorId: p.id, tipo: 'Pago', detalle: `Pago de la compra N° ${nro(numero)} · ${h.pago}`, importe: -total, medio: h.pago, turnoId: t ? t.id : '', ref: ref.id });
+    S.compraLineas = []; S.compraCab = { prov: h.prov, comp: '', pago: h.pago }; render(); toast(`Compra N° ${nro(numero)} registrada: ${fmt(total)}`);
+  } catch (e) { fallo(e); }
+}
+async function anularCompra(id) {
+  const c = S.compras.find(x => x.id === id); if (!c || c.anulada) return;
+  try {
+    await S.db.doc('compras/' + id).update({ anulada: true, anuladaTs: Date.now() });
+    await moverStock(c.items.map(l => ({ productoId: l.productoId, nombre: l.nombre, cant: -l.cant })), 'Anulación', 'Anula compra N° ' + nro(c.numero), id);
+    await S.db.collection('ctaprov').add({ ts: Date.now(), proveedorId: c.proveedorId, tipo: 'Anulación', detalle: 'Anula compra N° ' + nro(c.numero), importe: -c.total, ref: id });
+    S.confirm = null; toast('Compra N° ' + nro(c.numero) + ' anulada'); render();
+  } catch (e) { fallo(e); }
+}
+function vListaCompras() {
+  const lista = S.compras.slice(0, 100);
+  return `<section class="panel"><h2>Compras</h2>${lista.length ? `<div class="tablebox"><table><thead><tr><th>N°</th><th>Fecha</th><th>Proveedor</th><th>Pago</th><th class="r">Total</th><th></th></tr></thead><tbody>${lista.map(c => `<tr><td class="num">${nro(c.numero)}</td><td class="num">${fecha(c.ts)}<br><span class="tiny muted">${esc(c.items.map(i => fq(i.cant) + ' ' + i.nombre).join(', '))}</span></td><td>${esc(c.proveedorNombre)}${c.comprobante ? `<br><span class="tiny muted">Comp. ${esc(c.comprobante)}</span>` : ''}</td><td>${esc(c.pago)}</td><td class="r money">${c.anulada ? `<s>${fmt(c.total)}</s>` : fmt(c.total)}</td>
+    <td>${c.anulada ? '<span class="tag bad">anulada</span>' : `<button class="small" data-cpr-anular="${c.id}">Anular</button>`}</td></tr>
+    ${S.confirm && S.confirm.tipo === 'compra' && S.confirm.id === c.id ? `<tr><td colspan="6"><div class="confirm">¿Anular la compra N° ${nro(c.numero)}? Se descuenta el stock y la deuda con ${esc(c.proveedorNombre)}. <button class="small danger" id="okCprAnular">Sí, anular</button><button class="small" data-cancel>No</button></div></td></tr>` : ''}`).join('')}</tbody></table></div>` : '<div class="empty">Todavía no hay compras.</div>'}</section>`;
+}
+async function guardarProveedor() {
+  const v = id => ($('#' + id) || {}).value || '';
+  const nombre = v('pv_nombre').trim(); if (!nombre) return toast('Falta el nombre del proveedor');
+  const data = { nombre, doc: v('pv_doc').trim(), tel: v('pv_tel').trim(), contacto: v('pv_contacto').trim(), activo: true };
+  if (S.provEdit === 'nuevo') { const ref = await S.db.collection('proveedores').add({ ...data, creado: Date.now() }); S.provSel = ref.id; if (!S.compraCab.prov) S.compraCab.prov = ref.id; toast('Proveedor agregado'); }
+  else { await S.db.doc('proveedores/' + S.provEdit).update(data); toast('Guardado'); }
+  S.provEdit = null; render();
+}
+async function pagoProveedor() {
+  const p = prove(S.provSel); const monto = r2($('#pp_monto').value), medio = $('#pp_medio').value, t = turnoAbierto();
+  if (!p || !(monto > 0)) return toast('Escribí el monto que le pagás');
+  if (medio === 'Efectivo' && !t) return toast('Para pagar en efectivo abrí la caja');
+  await S.db.collection('ctaprov').add({ ts: Date.now(), proveedorId: p.id, tipo: 'Pago', detalle: 'Pago · ' + medio, importe: -monto, medio, turnoId: t ? t.id : '' });
+  toast(`Pago de ${fmt(monto)} a ${p.nombre} registrado`); render();
+}
+function vProveedores() {
+  const lista = proveedoresActivos();
+  const debemos = r2(lista.reduce((s, p) => s + Math.max(0, saldoProv(p.id)), 0));
+  const p = S.provSel ? prove(S.provSel) : null;
+  let der;
+  if (S.provEdit) {
+    const e = S.provEdit === 'nuevo' ? {} : prove(S.provEdit) || {};
+    der = `<section class="panel"><h2>${S.provEdit === 'nuevo' ? 'Nuevo proveedor' : 'Editar proveedor'}</h2><form id="provForm" class="form">
+      <label class="full">Nombre o razón social<input id="pv_nombre" required value="${esc(e.nombre)}"></label>
+      <label>CUIT<input id="pv_doc" inputmode="numeric" value="${esc(e.doc)}"></label><label>Teléfono<input id="pv_tel" inputmode="tel" value="${esc(e.tel)}"></label>
+      <label class="full">Contacto (vendedor, mail)<input id="pv_contacto" value="${esc(e.contacto)}"></label>
+      <div class="row full"><button class="primary" type="submit">${S.provEdit === 'nuevo' ? 'Agregar proveedor' : 'Guardar'}</button><button type="button" data-prov-cancel>Cancelar</button></div></form></section>`;
+  } else if (p) {
+    const saldo = saldoProv(p.id);
+    const movs = S.ctaprov.filter(m => m.proveedorId === p.id).sort((a, b) => a.ts - b.ts);
+    let corr = 0; const filas = movs.map(m => { corr = r2(corr + m.importe); return { ...m, saldo: corr }; }).reverse().slice(0, 80);
+    der = `<section class="stack"><div class="panel"><div class="row" style="justify-content:space-between"><div><h2 style="margin:0">${esc(p.nombre)}</h2><span class="tiny muted">${[p.doc && 'CUIT ' + esc(p.doc), p.tel && esc(p.tel), p.contacto && esc(p.contacto)].filter(Boolean).join(' · ') || 'Sin datos de contacto'}</span></div><button class="small" data-prov-editar="${p.id}">Editar</button></div>
+      <div class="kpis" style="margin:14px 0 0"><div class="kpi"><span>${saldo >= 0 ? 'Le debemos' : 'Saldo a favor nuestro'}</span><b>${fmt(Math.abs(saldo))}</b></div></div></div>
+      <div class="panel"><h2>Registrar un pago</h2><form id="pagoProvForm" class="form"><label>Monto ($)<input id="pp_monto" type="number" min="0.01" step="0.01" inputmode="decimal" required value="${saldo > 0 ? saldo : ''}"></label>
+        <label>Medio<select id="pp_medio">${PAGO_COMPRA.slice(1).map(m => `<option>${m}</option>`).join('')}</select></label><div class="full"><button class="primary" type="submit">Registrar pago</button></div></form>
+        <p class="tiny muted" style="margin-bottom:0">El pago en efectivo sale de la caja del turno abierto.</p></div>
+      <div class="panel"><h2>Cuenta corriente</h2>${filas.length ? `<div class="tablebox"><table><thead><tr><th>Fecha</th><th>Detalle</th><th class="r">Compra</th><th class="r">Pago</th><th class="r">Saldo</th></tr></thead><tbody>
+        ${filas.map(m => `<tr><td class="num" style="white-space:nowrap">${fechaC(m.ts)}</td><td>${esc(m.detalle)}</td><td class="r money">${m.importe > 0 ? fmt(m.importe) : ''}</td><td class="r money">${m.importe < 0 ? fmt(-m.importe) : ''}</td><td class="r money">${fmt(m.saldo)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Sin movimientos.</p>'}</div></section>`;
+  } else der = `<section class="panel"><h2>Cuenta corriente</h2><p class="muted">Elegí un proveedor para ver cuánto le debemos, sus compras y pagos.</p></section>`;
+  return `<div class="grid2"><section class="panel"><div class="row" style="justify-content:space-between;margin-bottom:10px"><h2 style="margin:0">Proveedores <span class="tag">${lista.length}</span></h2><button class="primary" data-prov-nuevo>Nuevo proveedor</button></div>
+    <p class="tiny muted" style="margin:0 0 8px">Les debemos en total <b class="money">${fmt(debemos)}</b></p>
+    ${lista.length ? `<div class="tablebox"><table><thead><tr><th>Proveedor</th><th>Teléfono</th><th class="r">Le debemos</th></tr></thead><tbody>${lista.map(x => { const s = saldoProv(x.id); return `<tr class="click${S.provSel === x.id ? ' sel' : ''}" data-prov-ver="${x.id}" tabindex="0"><td>${esc(x.nombre)}<br><span class="tiny muted">${esc(x.doc || '')}</span></td><td>${esc(x.tel || '—')}</td><td class="r">${s > 0 ? `<span class="tag warn money">${fmt(s)}</span>` : `<span class="money">${fmt(s)}</span>`}</td></tr>`; }).join('')}</tbody></table></div>`
+      : `<div class="empty">${S.loaded ? 'Todavía no hay proveedores.' : 'Cargando…'}</div>`}</section>${der}</div>`;
+}
+
 // ----- Caja -----
 function resumenTurno(t) {
   const vs = S.ventas.filter(v => v.turnoId === t.id && !v.anulada);
@@ -584,8 +820,10 @@ function resumenTurno(t) {
   vs.forEach(v => porMedio[v.pago] = r2((porMedio[v.pago] || 0) + v.total));
   const total = r2(vs.reduce((s, v) => s + v.total, 0));
   const egresos = r2((t.egresos || []).reduce((s, g) => s + g.monto, 0));
-  const esperado = r2((t.inicial || 0) + porMedio['Efectivo'] - egresos);
-  return { vs, porMedio, total, egresos, esperado };
+  const cobrosEf = r2(S.ctacte.filter(m => m.turnoId === t.id && m.medio === 'Efectivo').reduce((s, m) => s - m.importe, 0));
+  const pagosProvEf = r2(S.ctaprov.filter(m => m.turnoId === t.id && m.medio === 'Efectivo').reduce((s, m) => s - m.importe, 0));
+  const esperado = r2((t.inicial || 0) + porMedio['Efectivo'] + cobrosEf - egresos - pagosProvEf);
+  return { vs, porMedio, total, egresos, cobrosEf, pagosProvEf, esperado };
 }
 function vCaja() {
   const t = turnoAbierto();
@@ -600,7 +838,9 @@ function vCaja() {
     <div class="kpis"><div class="kpi"><span>Ventas del turno</span><b>${r.vs.length}</b></div><div class="kpi"><span>Total vendido</span><b>${fmt(r.total)}</b></div><div class="kpi"><span>Efectivo esperado</span><b>${fmt(r.esperado)}</b></div></div>
     <div class="panel"><h2>Turno abierto</h2><p class="muted" style="margin-top:-6px">Abierto ${fecha(t.apertura)}${t.responsable ? ' por ' + esc(t.responsable) : ''} con ${fmt(t.inicial)} en efectivo.</p>
     <table><tbody>${MEDIOS.map(m => `<tr><td>${m}</td><td class="r money">${fmt(r.porMedio[m])}</td></tr>`).join('')}
-      <tr><td>Gastos y retiros de caja</td><td class="r money">− ${fmt(r.egresos)}</td></tr></tbody></table></div>
+      <tr><td>Cobros de cuenta corriente en efectivo</td><td class="r money">${fmt(r.cobrosEf)}</td></tr>
+      <tr><td>Gastos y retiros de caja</td><td class="r money">− ${fmt(r.egresos)}</td></tr>
+      <tr><td>Pagos a proveedores en efectivo</td><td class="r money">− ${fmt(r.pagosProvEf)}</td></tr></tbody></table></div>
     <div class="panel"><h2>Gasto o retiro de efectivo</h2><form id="egresoForm" class="form"><label>Monto ($)<input id="eg_monto" type="number" min="0.01" step="0.01" required></label><label>Motivo<input id="eg_mot" placeholder="Ej: pago a proveedor, retiro del dueño" required></label><div class="full"><button type="submit">Registrar</button></div></form>
     ${(t.egresos || []).length ? `<table style="margin-top:10px"><tbody>${t.egresos.map(g => `<tr><td class="num">${fecha(g.ts)}</td><td>${esc(g.motivo)}</td><td class="r money">${fmt(g.monto)}</td></tr>`).join('')}</tbody></table>` : ''}</div>
   </section>
@@ -629,6 +869,7 @@ function vReportes() {
   const porMedio = {}; ok.forEach(v => porMedio[v.pago] = (porMedio[v.pago] || 0) + v.total);
   return `<div class="row" style="margin-bottom:14px"><div class="chips" role="group" aria-label="Período">${[['hoy', 'Hoy'], ['7d', 'Últimos 7 días'], ['mes', 'Este mes']].map(([k, l]) => `<button class="chip" data-rango="${k}" aria-pressed="${S.rango === k}">${l}</button>`).join('')}</div></div>
   <div class="kpis"><div class="kpi"><span>Ventas</span><b>${ok.length}</b></div><div class="kpi"><span>Facturado</span><b>${fmt(total)}</b></div><div class="kpi"><span>Ganancia</span><b>${fmt(total - costo)}</b></div><div class="kpi"><span>Ticket promedio</span><b>${fmt(ok.length ? total / ok.length : 0)}</b></div></div>
+  <p class="tiny muted" style="margin:-4px 0 14px">Remitos a cuenta en el período: <b class="money">${fmt(S.remitos.filter(r => !r.anulado && r.ts >= ini.getTime()).reduce((s, r) => s + r.total, 0))}</b> · Compras: <b class="money">${fmt(S.compras.filter(c => !c.anulada && c.ts >= ini.getTime()).reduce((s, c) => s + c.total, 0))}</b> · Los clientes deben <b class="money">${fmt(clientesActivos().reduce((s, c) => s + Math.max(0, saldoCli(c.id)), 0))}</b> · Debemos a proveedores <b class="money">${fmt(proveedoresActivos().reduce((s, p) => s + Math.max(0, saldoProv(p.id)), 0))}</b></p>
   <div class="grid2"><section class="panel"><h2>Productos que más venden</h2>${top.length ? `<div class="tablebox"><table><thead><tr><th>Producto</th><th class="r">Cant.</th><th class="r">Vendido</th><th class="r">Ganancia</th></tr></thead><tbody>
     ${top.map(p => `<tr><td>${esc(p.nombre)}<div class="bar" style="width:${Math.max(2, p.total / maxT * 100)}%;margin-top:4px"></div></td><td class="r num">${fq(p.cant)}</td><td class="r money">${fmt(p.total)}</td><td class="r money">${fmt(p.gan)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">No hay ventas en este período.</p>'}
     <h3 style="margin-top:16px">Por medio de pago</h3><table><tbody>${Object.entries(porMedio).sort((a, b) => b[1] - a[1]).map(([m, t]) => `<tr><td>${esc(m)}</td><td class="r money">${fmt(t)}</td></tr>`).join('') || '<tr><td class="muted">Sin ventas</td></tr>'}</tbody></table></section>
@@ -644,7 +885,7 @@ async function anular(id) {
 
 // ---------- eventos ----------
 document.addEventListener('click', e => {
-  const b = e.target.closest('button,tr[data-edit],a[data-eq-tab]'); if (!b) return;
+  const b = e.target.closest('button,tr[data-edit],tr[data-cli-ver],tr[data-prov-ver],a[data-eq-tab],a[data-cpr-tab]'); if (!b) return;
   const d = b.dataset;
   if (d.add) agregar(d.add);
   else if (d.del) { S.carrito.splice(Number(d.del), 1); render(); }
@@ -669,8 +910,30 @@ document.addEventListener('click', e => {
   else if (d.eqQrok) activarEquipo(d.eqQrok);
   else if (d.eqDetener) liberarEquipo(d.eqDetener, 'Equipo detenido');
   else if (d.eqFuera) cambiarServicio(d.eqFuera);
+  else if (d.cliTab) { S.cliTab = d.cliTab; S.confirm = null; render(); }
+  else if (d.cliVer) { S.cliSel = d.cliVer; S.cliEdit = null; render(); }
+  else if (d.cliNuevo !== undefined) { S.cliEdit = 'nuevo'; render(); }
+  else if (d.cliEditar) { S.cliEdit = d.cliEditar; render(); }
+  else if (d.cliCancel !== undefined) { S.cliEdit = null; render(); }
+  else if (d.preTicket) presuAlTicket(d.preTicket);
+  else if (d.preAnular) S.db.doc('presupuestos/' + d.preAnular).update({ estado: 'anulado' }).then(() => { toast('Presupuesto anulado'); render(); }, fallo);
+  else if (d.imprimir) { const [t, id] = d.imprimir.split(':'); imprimir(t, id); }
+  else if (d.remAnular) { S.confirm = { tipo: 'remito', id: d.remAnular }; render(); }
+  else if (d.cprTab) { e.preventDefault(); S.cprTab = d.cprTab; S.confirm = null; if (location.hash !== '#compras') location.hash = 'compras'; render(); }
+  else if (d.cprQuitar) { S.compraLineas.splice(Number(d.cprQuitar), 1); render(); }
+  else if (d.cprAnular) { S.confirm = { tipo: 'compra', id: d.cprAnular }; render(); }
+  else if (d.provVer) { S.provSel = d.provVer; S.provEdit = null; render(); }
+  else if (d.provNuevo !== undefined) { S.provEdit = 'nuevo'; render(); }
+  else if (d.provEditar) { S.provEdit = d.provEditar; render(); }
+  else if (d.provCancel !== undefined) { S.provEdit = null; render(); }
+  else if (b.id === 'guardarPresu') guardarPresupuesto();
+  else if (b.id === 'hacerRemito') hacerRemito();
+  else if (b.id === 'registrarCompra') registrarCompraNueva();
+  else if (b.id === 'vaciarCompra') { S.compraLineas = []; render(); }
+  else if (b.id === 'okRemAnular') anularRemito(S.confirm.id);
+  else if (b.id === 'okCprAnular') anularCompra(S.confirm.id);
   else if (b.id === 'cobrar') cobrar();
-  else if (b.id === 'vaciar') { S.carrito = []; render(); }
+  else if (b.id === 'vaciar') { S.carrito = []; S.presupuestoOrigen = null; S.clienteVenta = ''; render(); }
   else if (b.id === 'cancelEdit') { S.editId = null; S.prodForm = null; S.confirm = null; render(); }
   else if (b.id === 'bajaProd') { S.prodForm = leerForm(); S.confirm = { tipo: 'baja' }; render(); }
   else if (b.id === 'okBaja') { const id = S.editId; S.db.doc('productos/' + id).update({ activo: false }).then(() => { S.editId = null; S.prodForm = null; S.confirm = null; toast('Producto dado de baja'); render(); }, fallo); }
@@ -685,11 +948,13 @@ document.addEventListener('keydown', e => {
     const res = exacto ? [exacto] : buscarProductos(q);
     if (res.length === 1) agregar(res[0].id); else if (!res.length) toast('No encontré "' + q + '"');
   }
-  if (e.key === 'Enter' && e.target.matches('tr[data-edit]')) e.target.click();
+  if (e.key === 'Enter' && e.target.matches('tr[data-edit],tr[data-cli-ver],tr[data-prov-ver]')) e.target.click();
 });
 document.addEventListener('input', e => {
   const t = e.target;
   if (t.id === 'buscar') { S.buscar = t.value; render(); }
+  else if (t.id === 'filtroCli') { S.filtroCli = t.value; render(); }
+  else if (t.id === 'cpr_comp') S.compraCab.comp = t.value;
   else if (t.id === 'filtroProd') { S.filtroProd = t.value; S.prodForm = $('#prodForm') ? leerForm() : null; render(); }
   else if (t.dataset.qty) { const i = S.carrito[Number(t.dataset.qty)]; if (i) { i.cant = Math.max(0, i.porPeso ? r3(t.value) : Math.round(Number(t.value) || 0)); } }
   else if (t.id === 'eqc_min') { S.eqPago.minutos = Math.max(1, Math.round(Number(t.value) || 1)); const b = document.querySelector('#eqCobroForm button[type=submit]'); const x = eq(S.eqPago.id); if (b && x) b.textContent = 'Cobrar ' + fmt(precioEq(x, S.eqPago.minutos)) + ' y activar'; }
@@ -699,6 +964,10 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   if (e.target.dataset.qty) render();
   if (e.target.id === 'kardexProd') { S.kardexProd = e.target.value; render(); }
+  if (e.target.id === 'ventaCli') { S.clienteVenta = e.target.value; render(); }
+  if (e.target.id === 'cpr_prov') { S.compraCab.prov = e.target.value; render(); }
+  if (e.target.id === 'cpr_pago') { S.compraCab.pago = e.target.value; render(); }
+  if (e.target.id === 'cl_prod') { const p = prod(e.target.value); const c = $('#cl_costo'); if (c) c.placeholder = p ? 'El de siempre: ' + fmt(p.costo) : 'El de siempre'; }
 });
 document.addEventListener('submit', async e => {
   e.preventDefault();
@@ -709,11 +978,15 @@ document.addEventListener('submit', async e => {
     else if (id === 'equipoForm') await guardarEquipo();
     else if (id === 'eqCobroForm') { const x = eq(S.eqPago.id); const m = $('#eqc_min'); if (m) S.eqPago.minutos = Math.max(1, Math.round(Number(m.value) || 1)); S.eqPago.monto = precioEq(x, S.eqPago.minutos); if (S.eqPago.medio === 'QR Mercado Pago') { S.eqPago.esperandoQR = true; render(); } else await activarEquipo(x.id); }
     else if (id === 'prodForm') await guardarProducto();
-    else if (id === 'compraForm') await registrarCompra();
     else if (id === 'ajusteForm') await guardarAjuste();
+    else if (id === 'cliForm') await guardarCliente();
+    else if (id === 'pagoCliForm') await pagoCliente();
+    else if (id === 'provForm') await guardarProveedor();
+    else if (id === 'pagoProvForm') await pagoProveedor();
+    else if (id === 'cprLineaForm') { const p = prod($('#cl_prod').value), cant = r3($('#cl_cant').value), cv = $('#cl_costo').value; if (!p || !(cant > 0)) return toast('Elegí un producto y la cantidad'); S.compraLineas.push({ productoId: p.id, nombre: p.nombre, cant, costo: cv === '' ? r2(p.costo) : r2(cv) }); render(); const f = $('#cl_prod'); if (f) f.focus(); }
     else if (id === 'abrirForm') { await S.db.collection('turnos').add({ estado: 'abierto', apertura: Date.now(), inicial: r2($('#ab_ini').value), responsable: $('#ab_resp').value.trim(), egresos: [] }); toast('Turno abierto'); }
     else if (id === 'egresoForm') { const t = turnoAbierto(); const g = { ts: Date.now(), monto: r2($('#eg_monto').value), motivo: $('#eg_mot').value.trim() }; await S.db.doc('turnos/' + t.id).update({ egresos: [...(t.egresos || []), g] }); toast('Registrado'); }
-    else if (id === 'cerrarForm') { const t = turnoAbierto(); const r = resumenTurno(t); const cont = r2($('#ci_cont').value); await S.db.doc('turnos/' + t.id).update({ estado: 'cerrado', cierre: Date.now(), contado: cont, esperado: r.esperado, diferencia: r2(cont - r.esperado), totalVendido: r.total, porMedio: r.porMedio, cantVentas: r.vs.length }); toast('Turno cerrado'); }
+    else if (id === 'cerrarForm') { const t = turnoAbierto(); const r = resumenTurno(t); const cont = r2($('#ci_cont').value); await S.db.doc('turnos/' + t.id).update({ estado: 'cerrado', cierre: Date.now(), contado: cont, esperado: r.esperado, diferencia: r2(cont - r.esperado), totalVendido: r.total, porMedio: r.porMedio, cobrosEf: r.cobrosEf, pagosProvEf: r.pagosProvEf, cantVentas: r.vs.length }); toast('Turno cerrado'); }
   } catch (err) { fallo(err); }
 });
 window.addEventListener('hashchange', () => { S.confirm = null; render(); });
@@ -788,7 +1061,7 @@ render();
     S.local = true;
   }
   S.db = db;
-  const pend = new Set(['productos', 'ventas', 'movimientos', 'turnos', 'equipos']);
+  const pend = new Set(['productos', 'ventas', 'movimientos', 'turnos', 'equipos', 'clientes', 'ctacte', 'presupuestos', 'remitos', 'proveedores', 'compras', 'ctaprov']);
   const timer = setTimeout(() => { if (pend.size) $('#estadoDatos').textContent = 'Los datos tardan en llegar; pueden estar desactualizados.'; }, 10000);
   const listo = (k, snap) => { if (!snap.metadata.fromCache) pend.delete(k); if (!pend.size) { clearTimeout(timer); $('#estadoDatos').textContent = S.local ? 'Datos guardados en este navegador' : ''; } S.loaded = true; render(); };
   const err = e => { clearTimeout(timer); $('#estadoDatos').textContent = 'Error al leer los datos'; console.error(e); };
@@ -798,6 +1071,13 @@ render();
   db.collection('movimientos').orderBy('ts', 'desc').limit(400).onSnapshot(s => { S.movs = docs(s); listo('movimientos', s); }, err);
   db.collection('turnos').orderBy('apertura', 'desc').limit(40).onSnapshot(s => { S.turnos = docs(s); listo('turnos', s); }, err);
   db.collection('equipos').limit(500).onSnapshot(s => { S.equipos = docs(s); listo('equipos', s); }, err);
+  db.collection('clientes').limit(2000).onSnapshot(s => { S.clientes = docs(s); listo('clientes', s); }, err);
+  db.collection('ctacte').orderBy('ts', 'desc').limit(3000).onSnapshot(s => { S.ctacte = docs(s); listo('ctacte', s); }, err);
+  db.collection('presupuestos').orderBy('ts', 'desc').limit(300).onSnapshot(s => { S.presupuestos = docs(s); listo('presupuestos', s); }, err);
+  db.collection('remitos').orderBy('ts', 'desc').limit(500).onSnapshot(s => { S.remitos = docs(s); listo('remitos', s); }, err);
+  db.collection('proveedores').limit(1000).onSnapshot(s => { S.proveedores = docs(s); listo('proveedores', s); }, err);
+  db.collection('compras').orderBy('ts', 'desc').limit(500).onSnapshot(s => { S.compras = docs(s); listo('compras', s); }, err);
+  db.collection('ctaprov').orderBy('ts', 'desc').limit(3000).onSnapshot(s => { S.ctaprov = docs(s); listo('ctaprov', s); }, err);
   db.doc('config/contadores').onSnapshot(s => { S.contadores = s.exists ? s.data() : {}; }, err);
 })();
 })();
