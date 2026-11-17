@@ -1,5 +1,9 @@
 # Milenium 2
 
+### 👉 [Abrir la app](https://bsturniolo.github.io/MILENIUM-2/)
+
+https://bsturniolo.github.io/MILENIUM-2/ · Si ves una versión vieja, recargá con Ctrl + F5. La versión aparece abajo de todo en la app.
+
 Sistema de gestión de mercadería para comercios: productos, ventas en mostrador, stock, equipos automáticos que se cobran por uso, caja por turno y reportes.
 
 Toma las ideas de un sistema de gestión de estaciones de servicio de los años 2000 (ventas con foto de precio y costo, kardex de stock, caja por turno, auditoría de cambios) y las rehace como una aplicación web simple.
@@ -19,9 +23,9 @@ Toma las ideas de un sistema de gestión de estaciones de servicio de los años 
 
 ## Cómo usarlo
 
-Abrí `index.html` en el navegador. Es un solo archivo, no necesita instalar nada.
+Entrá a https://bsturniolo.github.io/MILENIUM-2/, o descargá `index.html` y abrilo en el navegador. Es un solo archivo, no necesita instalar nada.
 
-- Fuera de Claude, los datos se guardan en el navegador (localStorage) de esa computadora. Arranca con 5 productos y 3 equipos de ejemplo.
+- Fuera de Claude, los datos se guardan en el navegador (localStorage) de esa computadora. Arranca con 5 productos de ejemplo.
 - Publicado como Artifact en Claude, usa la base de datos compartida del Artifact.
 
 ## Módulos para las máquinas

@@ -124,7 +124,7 @@ button.primary:hover{background:linear-gradient(135deg,var(--accent),var(--teal)
 .tag.acc{background:var(--accent-soft);color:var(--accent)}
 @media (max-width:560px){.brand .logo{width:42px;height:42px}.brand{font-size:21px}header.top{padding:12px 14px}}
 #imprimir{display:none}
-@media print{.wrap,#toast{display:none!important}#imprimir{display:block;color:#000;font:14px/1.5 system-ui,sans-serif}#imprimir table{width:100%;border-collapse:collapse}#imprimir th,#imprimir td{border-bottom:1px solid #999;padding:4px 6px;text-align:left}#imprimir .r{text-align:right}}
+@media print{.wrap,#toast,footer{display:none!important}#imprimir{display:block;color:#000;font:14px/1.5 system-ui,sans-serif}#imprimir table{width:100%;border-collapse:collapse}#imprimir th,#imprimir td{border-bottom:1px solid #999;padding:4px 6px;text-align:left}#imprimir .r{text-align:right}}
 tr.sel td{background:var(--accent-soft,rgba(0,0,0,.05))}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -140,6 +140,7 @@ tr.sel td{background:var(--accent-soft,rgba(0,0,0,.05))}
   <div id="aviso"></div>
   <main id="vista"></main>
 </div>
+<footer class="tiny muted" style="text-align:center;padding:0 16px 24px">Milenium 2 · versión 17/11/2026 (diseño Neptuno)</footer>
 <div id="toast" hidden></div>
 <div id="imprimir"></div>
 
