@@ -193,7 +193,12 @@ def crear_app(ruta_base: str | None = None, token_admin: str | None = None) -> F
     )
 
     # La propia app (index.html del repo) servida en /app: así no hace falta otra página.
-    pagina = RAIZ_REPO / "index.html"
+    pagina = pathlib.Path(os.environ.get("MILENIUM_APP_HTML", RAIZ_REPO / "index.html"))
+
+    @app.get("/salud", include_in_schema=False)
+    def salud():
+        base.uno("SELECT 1")
+        return {"ok": True}
 
     @app.get("/", include_in_schema=False)
     def raiz():

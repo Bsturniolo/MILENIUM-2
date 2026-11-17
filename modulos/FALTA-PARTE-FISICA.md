@@ -6,7 +6,7 @@
 
 - [ ] Comprar los materiales de la prueba de mesa (abajo)
 - [ ] Armar la prueba de mesa con un foquito y probar el firmware en una placa real
-- [ ] Subir el servidor a internet con HTTPS y pegar su certificado raíz en el firmware (`CA_RAIZ`)
+- [ ] Subir el servidor a internet con HTTPS (ya está preparado: ver `docs/SUBIR-A-LA-NUBE.md`) y pegar su certificado raíz en el firmware (`CA_RAIZ`)
 - [ ] Elegir la primera máquina real y ver cómo se habilita (si alcanza con darle corriente o si necesita un pulso de arranque)
 - [ ] Armar el primer módulo en una caja cerrada, con un electricista matriculado para la parte de 220 V
 - [ ] Probar 1 semana en una sola máquina antes de instalar más

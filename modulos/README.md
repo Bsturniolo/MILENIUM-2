@@ -74,4 +74,4 @@ El servidor solo acepta pedidos de la app desde la página de GitHub y desde la 
 ## Próximos pasos de software
 
 - Reemplazar el pago simulado por el aviso real de Mercado Pago (verificando su firma y consultando el pago antes de activar).
-- Subir el servidor a internet con HTTPS.
+- Subir el servidor a internet con HTTPS: ya está todo preparado, ver [`docs/SUBIR-A-LA-NUBE.md`](../docs/SUBIR-A-LA-NUBE.md).

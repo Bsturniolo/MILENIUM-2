@@ -28,6 +28,8 @@ En `modulos/` está el sistema propio para encender las máquinas solo cuando se
 
 > ⚠️ **Falta la parte física**: todavía no se armó ninguna placa. Materiales, conexiones y pendientes en [modulos/FALTA-PARTE-FISICA.md](modulos/FALTA-PARTE-FISICA.md).
 
+El servidor está listo para subirse a la nube, pero todavía no se subió: pasos en [docs/SUBIR-A-LA-NUBE.md](docs/SUBIR-A-LA-NUBE.md).
+
 ## Estructura
 
 | Archivo | Para qué |
@@ -36,6 +38,8 @@ En `modulos/` está el sistema propio para encender las máquinas solo cuando se
 | `index.html` | Versión lista para abrir, generada con `python3 scripts/build.py` |
 | `docs/propuesta.md` | Plan del sistema y etapas |
 | `modulos/` | Servidor, firmware y simulador de los módulos para máquinas |
+| `Dockerfile` · `deploy/` | Todo lo necesario para subir el servidor a la nube |
+| `docs/SUBIR-A-LA-NUBE.md` | Guía paso a paso para subirlo |
 
 ## Próximas etapas
 

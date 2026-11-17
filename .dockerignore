@@ -1,0 +1,9 @@
+.git
+**/__pycache__
+**/.venv
+**/*.db
+**/tests
+modulos/firmware
+modulos/simulador
+docs
+deploy/.env
