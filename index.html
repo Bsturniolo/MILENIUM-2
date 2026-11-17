@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
-<title>Mostrador</title>
+<title>Milenium 2</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
@@ -90,6 +90,12 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--sunk)}
 .confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px;border-radius:8px;background:var(--bad-soft);margin-top:10px}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-weight:600;font-size:14px;z-index:20;max-width:calc(100% - 32px)}
 .bar{height:8px;border-radius:4px;background:var(--accent);min-width:2px}
+.eqgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr));gap:16px}
+.eqcard.on{border-color:var(--good);box-shadow:inset 0 3px 0 var(--good)}
+.eqname{font-family:var(--f-display);font-size:17px}
+.countdown{font-family:var(--f-mono);font-size:40px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--good);line-height:1}
+.qrbox{display:flex;gap:12px;align-items:center}
+.qrfake{width:76px;height:76px;flex:none;border-radius:6px;background:repeating-conic-gradient(var(--ink) 0 25%,var(--surface) 0 50%) 0 0/19px 19px;border:4px solid var(--surface);outline:1px solid var(--line)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -97,11 +103,11 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--sunk)}
 
 <div class="wrap">
   <header class="top">
-    <div class="brand">Mostrador <small>gestión de mercadería</small></div>
+    <div class="brand">Milenium 2 <small>gestión de mercadería y equipos</small></div>
     <div class="row"><span id="estadoTurno" class="pill off">Cargando…</span><span id="estadoDatos" class="tiny muted"></span></div>
   </header>
   <nav class="tabs" aria-label="Secciones">
-    <a href="#vender">Vender</a><a href="#productos">Productos</a><a href="#stock">Stock</a><a href="#caja">Caja</a><a href="#reportes">Reportes</a>
+    <a href="#vender">Vender</a><a href="#productos">Productos</a><a href="#stock">Stock</a><a href="#equipos">Equipos</a><a href="#caja">Caja</a><a href="#reportes">Reportes</a>
   </nav>
   <div id="aviso"></div>
   <main id="vista"></main>
@@ -112,7 +118,7 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--sunk)}
 (() => {
 'use strict';
 // ---------- estado ----------
-const S = { productos: [], ventas: [], movs: [], turnos: [], contadores: {}, carrito: [], pago: 'Efectivo', buscar: '', filtroProd: '', kardexProd: '', rango: 'hoy', editId: null, confirm: null, loaded: false, db: null, prodForm: null };
+const S = { equipos: [], eqPago: null, eqEdit: null, eqNuevo: false, productos: [], ventas: [], movs: [], turnos: [], contadores: {}, carrito: [], pago: 'Efectivo', buscar: '', filtroProd: '', kardexProd: '', rango: 'hoy', editId: null, confirm: null, loaded: false, db: null, prodForm: null };
 const MEDIOS = ['Efectivo', 'Débito', 'Crédito', 'Transferencia', 'QR Mercado Pago'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -127,7 +133,7 @@ const turnoAbierto = () => S.turnos.find(t => t.estado === 'abierto');
 const activos = () => S.productos.filter(p => p.activo !== false).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 
 // ---------- vistas ----------
-const vistas = ['vender', 'productos', 'stock', 'caja', 'reportes'];
+const vistas = ['vender', 'productos', 'stock', 'equipos', 'caja', 'reportes'];
 const vistaActual = () => { const h = location.hash.slice(1); return vistas.includes(h) ? h : 'vender'; };
 
 function render() {
@@ -140,7 +146,7 @@ function render() {
   else { et.className = 'pill off'; et.textContent = 'Caja cerrada'; }
   const focused = document.activeElement && document.activeElement.id;
   const caret = focused && document.activeElement.selectionStart;
-  $('#vista').innerHTML = ({ vender: vVender, productos: vProductos, stock: vStock, caja: vCaja, reportes: vReportes })[v]();
+  $('#vista').innerHTML = ({ vender: vVender, productos: vProductos, stock: vStock, equipos: vEquipos, caja: vCaja, reportes: vReportes })[v]();
   if (focused) { const el = document.getElementById(focused); if (el) { el.focus(); try { if (caret != null) el.setSelectionRange(caret, caret); } catch (e) {} } }
 }
 
@@ -346,6 +352,88 @@ async function guardarAjuste() {
   try { await moverStock([{ productoId: id, nombre: p.nombre, cant: dif }], 'Ajuste', mot + ` (había ${fq(p.stock)}, se contaron ${fq(real)})`); toast('Ajuste guardado'); render(); } catch (e) { fallo(e); }
 }
 
+// ----- Equipos (máquinas que se activan al pagar) -----
+const TIPOS_EQ = ['Lavarropas', 'Secarropas', 'Cafetera', 'Aspiradora', 'Hidrolavadora', 'Expendedora', 'Otro'];
+const eq = id => S.equipos.find(x => x.id === id);
+const restante = x => x.estado === 'en_uso' && x.fin ? Math.max(0, x.fin - Date.now()) : 0;
+const mmss = ms => { const t = Math.ceil(ms / 1000), m = Math.floor(t / 60), s = t % 60; return m + ':' + String(s).padStart(2, '0'); };
+const precioEq = (x, min) => r2(x.modo === 'minuto' ? x.precio * min : x.precio);
+function vEquipos() {
+  const lista = S.equipos.filter(x => x.activo !== false).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  const ini = new Date(); ini.setHours(0, 0, 0, 0);
+  const hoy = S.ventas.filter(v => v.equipoId && !v.anulada && v.ts >= ini.getTime());
+  const recaudo = id => r2(hoy.filter(v => v.equipoId === id).reduce((s, v) => s + v.total, 0));
+  const usos = id => hoy.filter(v => v.equipoId === id).length;
+  const enUso = lista.filter(x => x.estado === 'en_uso').length;
+  const t = turnoAbierto();
+  const e = S.eqEdit ? eq(S.eqEdit) : null;
+  const form = (S.eqNuevo || e) ? `<section class="panel"><h2>${e ? 'Editar equipo' : 'Nuevo equipo'}</h2><form id="equipoForm" class="form">
+    <label class="full">Nombre<input id="eq_nombre" required placeholder="Ej: Lavarropas 1" value="${esc(e ? e.nombre : '')}"></label>
+    <label>Tipo<select id="eq_tipo">${TIPOS_EQ.map(x => `<option ${e && e.tipo === x ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
+    <label>Ubicación<input id="eq_ubic" placeholder="Ej: Lavadero, fondo" value="${esc(e ? e.ubicacion || '' : '')}"></label>
+    <label>Se cobra<select id="eq_modo"><option value="uso" ${e && e.modo === 'uso' ? 'selected' : ''}>Por uso o ciclo</option><option value="minuto" ${e && e.modo === 'minuto' ? 'selected' : ''}>Por minuto</option></select></label>
+    <label>Precio ($)<input id="eq_precio" type="number" min="0" step="0.01" required value="${e ? e.precio : ''}"></label>
+    <label>Duración del ciclo (min)<input id="eq_min" type="number" min="1" step="1" value="${e ? e.minutos || 30 : 30}"></label>
+    <p class="tiny muted full">Por uso: un precio fijo y el equipo funciona lo que dura el ciclo. Por minuto: el precio es por minuto y al cobrar se eligen los minutos.</p>
+    <div class="row full"><button class="primary" type="submit">${e ? 'Guardar' : 'Agregar equipo'}</button><button type="button" data-eq-cancel>Cancelar</button>${e ? '<button type="button" class="danger" data-eq-baja>Dar de baja</button>' : ''}</div>
+  </form></section>` : '';
+  return `<div class="kpis"><div class="kpi"><span>Equipos</span><b>${lista.length}</b></div><div class="kpi"><span>Funcionando ahora</span><b>${enUso}</b></div><div class="kpi"><span>Usos hoy</span><b>${hoy.length}</b></div><div class="kpi"><span>Recaudado hoy</span><b>${fmt(hoy.reduce((s, v) => s + v.total, 0))}</b></div></div>
+  ${!t && S.loaded ? '<div class="notice" style="margin-bottom:16px">Para cobrar y activar equipos, primero abrí la caja en la pestaña <a href="#caja">Caja</a>.</div>' : ''}
+  <div class="row" style="justify-content:space-between;margin-bottom:12px"><h2 style="margin:0">Equipos automáticos</h2>${!S.eqNuevo && !e ? '<button class="primary" data-eq-nuevo>Agregar equipo</button>' : ''}</div>
+  ${form}
+  ${lista.length ? `<div class="eqgrid">${lista.map(x => {
+    const p = S.eqPago && S.eqPago.id === x.id ? S.eqPago : null;
+    const est = x.estado === 'en_uso' ? '<span class="pill ok">Funcionando</span>' : x.estado === 'fuera' ? '<span class="pill bad">Fuera de servicio</span>' : '<span class="pill off">Libre</span>';
+    let cuerpo = '';
+    if (x.estado === 'en_uso') cuerpo = `<div class="countdown" data-fin="${x.fin}" data-eqid="${x.id}">${mmss(restante(x))}</div><p class="tiny muted">Termina ${fecha(x.fin)} · cobrado ${fmt(x.monto || 0)}</p><button data-eq-detener="${x.id}">Detener ahora</button>`;
+    else if (x.estado === 'fuera') cuerpo = `<p class="muted">No se puede cobrar hasta que vuelva a estar en servicio.</p><button data-eq-fuera="${x.id}">Volver a poner en servicio</button>`;
+    else if (p && p.esperandoQR) cuerpo = `<div class="qrbox" aria-label="Código QR simulado"><div class="qrfake"></div><div><b>Esperando el pago con QR</b><br><span class="money">${fmt(p.monto)}</span><br><span class="tiny muted">Simulado: en la versión con servidor, Mercado Pago avisa solo cuando entra el pago.</span></div></div>
+      <div class="row"><button class="primary" data-eq-qrok="${x.id}">Simular pago recibido</button><button data-eq-cancelpago>Cancelar</button></div>`;
+    else if (p) cuerpo = `<form id="eqCobroForm" class="stack" style="gap:10px">${x.modo === 'minuto' ? `<label>Minutos<input id="eqc_min" type="number" min="1" step="1" value="${p.minutos}"></label>` : ''}
+      <div class="chips" role="group" aria-label="Medio de pago">${MEDIOS.map(m => `<button type="button" class="chip" data-eq-medio="${m}" aria-pressed="${p.medio === m}">${m}</button>`).join('')}</div>
+      <div class="row"><button class="primary" type="submit">Cobrar ${fmt(precioEq(x, p.minutos))} y activar</button><button type="button" data-eq-cancelpago>Cancelar</button></div></form>`;
+    else cuerpo = `<p class="money" style="font-size:20px;margin:0">${fmt(x.precio)} <span class="tiny muted">${x.modo === 'minuto' ? 'por minuto' : 'por uso · ' + (x.minutos || 30) + ' min'}</span></p>
+      <div class="row"><button class="primary" data-eq-cobrar="${x.id}" ${!t ? 'disabled' : ''}>Cobrar y activar</button><button class="small" data-eq-fuera="${x.id}">Fuera de servicio</button></div>`;
+    return `<article class="panel eqcard ${x.estado === 'en_uso' ? 'on' : ''}"><div class="row" style="justify-content:space-between"><div><b class="eqname">${esc(x.nombre)}</b><br><span class="tiny muted">${esc(x.tipo || '')}${x.ubicacion ? ' · ' + esc(x.ubicacion) : ''}</span></div>${est}</div>
+      <div class="stack" style="gap:10px;margin-top:12px">${cuerpo}</div>
+      <div class="row tiny muted" style="justify-content:space-between;margin-top:12px;border-top:1px solid var(--line);padding-top:8px"><span>Hoy: ${usos(x.id)} usos · <span class="money">${fmt(recaudo(x.id))}</span></span>${x.estado !== 'en_uso' ? `<button class="small" data-eq-editar="${x.id}">Editar</button>` : ''}</div></article>`;
+  }).join('')}</div>` : `<div class="empty">${S.loaded ? 'Todavía no hay equipos. Agregá uno: un lavarropas, una cafetera o lo que quieras cobrar por uso.' : 'Cargando equipos…'}</div>`}
+  <section class="panel" style="margin-top:16px"><h2>Últimos usos</h2>${S.ventas.filter(v => v.equipoId).length ? `<div class="tablebox"><table><thead><tr><th>Fecha</th><th>Equipo</th><th>Pago</th><th class="r">Importe</th></tr></thead><tbody>
+    ${S.ventas.filter(v => v.equipoId).slice(0, 30).map(v => `<tr><td class="num">${fecha(v.ts)}</td><td>${esc(v.items[0] ? v.items[0].nombre : '')}</td><td>${esc(v.pago)}</td><td class="r money">${v.anulada ? `<s>${fmt(v.total)}</s>` : fmt(v.total)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Cada vez que se cobra y activa un equipo, queda anotado acá y en los reportes.</p>'}</section>`;
+}
+async function guardarEquipo() {
+  const v = id => document.getElementById(id).value;
+  const nombre = v('eq_nombre').trim();
+  if (!nombre) return toast('Falta el nombre del equipo');
+  if (!(Number(v('eq_precio')) > 0)) return toast('Falta el precio');
+  const data = { nombre, tipo: v('eq_tipo'), ubicacion: v('eq_ubic').trim(), modo: v('eq_modo'), precio: r2(v('eq_precio')), minutos: Math.max(1, Math.round(Number(v('eq_min')) || 30)), activo: true };
+  if (S.eqEdit) await S.db.doc('equipos/' + S.eqEdit).update(data);
+  else await S.db.collection('equipos').add({ ...data, estado: 'libre', creado: Date.now() });
+  toast((S.eqEdit ? 'Guardado: ' : 'Agregado: ') + nombre); S.eqEdit = null; S.eqNuevo = false; render();
+}
+async function activarEquipo(id) {
+  const x = eq(id), p = S.eqPago, t = turnoAbierto();
+  if (!x || !p || !t || x.estado !== 'libre') return;
+  const min = x.modo === 'minuto' ? p.minutos : (x.minutos || 30);
+  const monto = precioEq(x, min);
+  const numero = (S.contadores.venta || 0) + 1, ts = Date.now();
+  try {
+    await S.db.doc('config/contadores').set({ ...S.contadores, venta: numero });
+    const ref = await S.db.collection('ventas').add({ numero, ts, equipoId: id, items: [{ productoId: 'equipo:' + id, nombre: x.nombre + (x.modo === 'minuto' ? ` · ${min} min` : ' · 1 uso'), cant: 1, precio: monto, costo: 0 }], total: monto, costo: 0, pago: p.medio, turnoId: t.id, anulada: false });
+    await S.db.doc('equipos/' + id).update({ estado: 'en_uso', inicio: ts, fin: ts + min * 60000, monto, ventaId: ref.id });
+    S.eqPago = null; toast(x.nombre + ' activado por ' + min + ' min'); render();
+  } catch (e) { fallo(e); }
+}
+async function liberarEquipo(id, motivo) {
+  const x = eq(id); if (!x || x.estado !== 'en_uso') return;
+  x.estado = 'libre';
+  try { await S.db.doc('equipos/' + id).update({ estado: 'libre', fin: 0, ultimoFin: Date.now() }); if (motivo) toast(motivo); render(); } catch (e) { fallo(e); }
+}
+setInterval(() => {
+  S.equipos.forEach(x => { if (x.estado === 'en_uso' && x.fin && x.fin <= Date.now() && S.db) liberarEquipo(x.id, x.nombre + ' terminó y quedó libre'); });
+  document.querySelectorAll('.countdown').forEach(el => { el.textContent = mmss(Math.max(0, Number(el.dataset.fin) - Date.now())); });
+}, 1000);
+
 // ----- Caja -----
 function resumenTurno(t) {
   const vs = S.ventas.filter(v => v.turnoId === t.id && !v.anulada);
@@ -422,6 +510,16 @@ document.addEventListener('click', e => {
   else if (d.edit) { S.editId = d.edit; S.prodForm = null; S.confirm = null; render(); window.scrollTo({ top: 0 }); }
   else if (d.anular) { S.confirm = { tipo: 'anular', id: d.anular }; render(); }
   else if ('cancel' in d) { S.confirm = null; render(); }
+  else if (d.eqNuevo !== undefined) { S.eqNuevo = true; S.eqEdit = null; render(); }
+  else if (d.eqEditar) { S.eqEdit = d.eqEditar; S.eqNuevo = false; render(); window.scrollTo({ top: 0 }); }
+  else if (d.eqCancel !== undefined) { S.eqEdit = null; S.eqNuevo = false; render(); }
+  else if (d.eqBaja !== undefined) { const id = S.eqEdit; S.db.doc('equipos/' + id).update({ activo: false }).then(() => { S.eqEdit = null; toast('Equipo dado de baja'); render(); }, fallo); }
+  else if (d.eqCobrar) { const x = eq(d.eqCobrar); S.eqPago = { id: d.eqCobrar, medio: 'QR Mercado Pago', minutos: x && x.minutos || 30 }; render(); }
+  else if (d.eqMedio) { S.eqPago.medio = d.eqMedio; const m = $('#eqc_min'); if (m) S.eqPago.minutos = Math.max(1, Math.round(Number(m.value) || 1)); render(); }
+  else if (d.eqCancelpago !== undefined) { S.eqPago = null; render(); }
+  else if (d.eqQrok) activarEquipo(d.eqQrok);
+  else if (d.eqDetener) liberarEquipo(d.eqDetener, 'Equipo detenido');
+  else if (d.eqFuera) { const x = eq(d.eqFuera); S.db.doc('equipos/' + x.id).update({ estado: x.estado === 'fuera' ? 'libre' : 'fuera' }).then(render, fallo); }
   else if (b.id === 'cobrar') cobrar();
   else if (b.id === 'vaciar') { S.carrito = []; render(); }
   else if (b.id === 'cancelEdit') { S.editId = null; S.prodForm = null; S.confirm = null; render(); }
@@ -445,6 +543,7 @@ document.addEventListener('input', e => {
   if (t.id === 'buscar') { S.buscar = t.value; render(); }
   else if (t.id === 'filtroProd') { S.filtroProd = t.value; S.prodForm = $('#prodForm') ? leerForm() : null; render(); }
   else if (t.dataset.qty) { const i = S.carrito[Number(t.dataset.qty)]; if (i) { i.cant = Math.max(0, i.porPeso ? r3(t.value) : Math.round(Number(t.value) || 0)); } }
+  else if (t.id === 'eqc_min') { S.eqPago.minutos = Math.max(1, Math.round(Number(t.value) || 1)); const b = document.querySelector('#eqCobroForm button[type=submit]'); const x = eq(S.eqPago.id); if (b && x) b.textContent = 'Cobrar ' + fmt(precioEq(x, S.eqPago.minutos)) + ' y activar'; }
   else if (t.id === 'pagaCon' || t.id === 'ci_cont') render();
   else if (t.id === 'pf_costo' || t.id === 'pf_precio') { S.prodForm = leerForm(); render(); }
 });
@@ -457,7 +556,9 @@ document.addEventListener('submit', async e => {
   if (!S.db) return toast('Los datos todavía no están disponibles');
   const id = e.target.id;
   try {
-    if (id === 'prodForm') await guardarProducto();
+    if (id === 'equipoForm') await guardarEquipo();
+    else if (id === 'eqCobroForm') { const x = eq(S.eqPago.id); const m = $('#eqc_min'); if (m) S.eqPago.minutos = Math.max(1, Math.round(Number(m.value) || 1)); S.eqPago.monto = precioEq(x, S.eqPago.minutos); if (S.eqPago.medio === 'QR Mercado Pago') { S.eqPago.esperandoQR = true; render(); } else await activarEquipo(x.id); }
+    else if (id === 'prodForm') await guardarProducto();
     else if (id === 'compraForm') await registrarCompra();
     else if (id === 'ajusteForm') await guardarAjuste();
     else if (id === 'abrirForm') { await S.db.collection('turnos').add({ estado: 'abierto', apertura: Date.now(), inicial: r2($('#ab_ini').value), responsable: $('#ab_resp').value.trim(), egresos: [] }); toast('Turno abierto'); }
@@ -521,6 +622,7 @@ function localDB() {
     const ej = [['Agua mineral 500 ml', '7790001000011', 'Bebidas', 450, 800, 48, 12], ['Gaseosa cola 1,5 L', '7790001000028', 'Bebidas', 1500, 2600, 24, 6], ['Alfajor triple chocolate', '7790001000035', 'Golosinas', 600, 1100, 60, 20], ['Cargador de celular USB-C', '7790001000066', 'Accesorios', 5000, 9500, 8, 3], ['Hielo en bolsa 2 kg', '7790001000059', 'Varios', 800, 1800, 15, 5]];
     data.productos = {};
     ej.forEach(([nombre, cod, rubro, costo, precio, stock, minimo], i) => data.productos['ej' + (i + 1)] = { nombre, codigos: [cod], rubro, iva: 21, costo, precio, stock, minimo, controlaStock: true, porPeso: false, activo: true, ejemplo: true, creado: Date.now() });
+    data.equipos = { eq1: { nombre: 'Lavarropas 1', tipo: 'Lavarropas', ubicacion: 'Lavadero', modo: 'uso', precio: 3500, minutos: 40, estado: 'libre', activo: true, ejemplo: true }, eq2: { nombre: 'Cafetera de autoservicio', tipo: 'Cafetera', ubicacion: 'Shop', modo: 'uso', precio: 2200, minutos: 1, estado: 'libre', activo: true, ejemplo: true }, eq3: { nombre: 'Aspiradora boxes', tipo: 'Aspiradora', ubicacion: 'Lavadero de autos', modo: 'minuto', precio: 500, minutos: 5, estado: 'libre', activo: true, ejemplo: true } };
     try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { return null; }
   }
   return { collection: coll, doc: docRef };
@@ -536,7 +638,7 @@ render();
     S.local = true;
   }
   S.db = db;
-  const pend = new Set(['productos', 'ventas', 'movimientos', 'turnos']);
+  const pend = new Set(['productos', 'ventas', 'movimientos', 'turnos', 'equipos']);
   const timer = setTimeout(() => { if (pend.size) $('#estadoDatos').textContent = 'Los datos tardan en llegar; pueden estar desactualizados.'; }, 10000);
   const listo = (k, snap) => { if (!snap.metadata.fromCache) pend.delete(k); if (!pend.size) { clearTimeout(timer); $('#estadoDatos').textContent = S.local ? 'Datos guardados en este navegador' : ''; } S.loaded = true; render(); };
   const err = e => { clearTimeout(timer); $('#estadoDatos').textContent = 'Error al leer los datos'; console.error(e); };
@@ -545,6 +647,7 @@ render();
   db.collection('ventas').orderBy('ts', 'desc').limit(1000).onSnapshot(s => { S.ventas = docs(s); listo('ventas', s); }, err);
   db.collection('movimientos').orderBy('ts', 'desc').limit(400).onSnapshot(s => { S.movs = docs(s); listo('movimientos', s); }, err);
   db.collection('turnos').orderBy('apertura', 'desc').limit(40).onSnapshot(s => { S.turnos = docs(s); listo('turnos', s); }, err);
+  db.collection('equipos').limit(500).onSnapshot(s => { S.equipos = docs(s); listo('equipos', s); }, err);
   db.doc('config/contadores').onSnapshot(s => { S.contadores = s.exists ? s.data() : {}; }, err);
 })();
 })();
