@@ -371,6 +371,7 @@ function vEquipos() {
   </form></section>` : '';
   return `<div class="kpis"><div class="kpi"><span>Equipos</span><b>${lista.length}</b></div><div class="kpi"><span>Funcionando ahora</span><b>${enUso}</b></div><div class="kpi"><span>Usos hoy</span><b>${hoy.length}</b></div><div class="kpi"><span>Recaudado hoy</span><b>${fmt(hoy.reduce((s, v) => s + v.total, 0))}</b></div></div>
   ${!t && S.loaded ? '<div class="notice" style="margin-bottom:16px">Para cobrar y activar equipos, primero abrí la caja en la pestaña <a href="#caja">Caja</a>.</div>' : ''}
+  <div class="notice" style="margin-bottom:16px"><b>Falta la parte física.</b> Por ahora el cobro y el encendido son simulados: todavía no hay módulos instalados en las máquinas. Los materiales y los pasos están en <a href="https://github.com/Bsturniolo/MILENIUM-2/blob/main/modulos/FALTA-PARTE-FISICA.md" target="_blank" rel="noopener">FALTA-PARTE-FISICA.md</a>.</div>
   <div class="row" style="justify-content:space-between;margin-bottom:12px"><h2 style="margin:0">Equipos automáticos</h2>${!S.eqNuevo && !e ? '<button class="primary" data-eq-nuevo>Agregar equipo</button>' : ''}</div>
   ${form}
   ${lista.length ? `<div class="eqgrid">${lista.map(x => {

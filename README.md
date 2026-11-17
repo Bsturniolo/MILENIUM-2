@@ -22,6 +22,12 @@ Abrí `index.html` en el navegador. Es un solo archivo, no necesita instalar nad
 - Fuera de Claude, los datos se guardan en el navegador (localStorage) de esa computadora. Arranca con 5 productos y 3 equipos de ejemplo.
 - Publicado como Artifact en Claude, usa la base de datos compartida del Artifact.
 
+## Módulos para las máquinas
+
+En `modulos/` está el sistema propio para encender las máquinas solo cuando se pagó: servidor, código para la placa ESP32 y un simulador.
+
+> ⚠️ **Falta la parte física**: todavía no se armó ninguna placa. Materiales, conexiones y pendientes en [modulos/FALTA-PARTE-FISICA.md](modulos/FALTA-PARTE-FISICA.md).
+
 ## Estructura
 
 | Archivo | Para qué |
@@ -29,6 +35,7 @@ Abrí `index.html` en el navegador. Es un solo archivo, no necesita instalar nad
 | `mostrador.src.html` | Código fuente de la app (HTML, CSS y JavaScript sin dependencias) |
 | `index.html` | Versión lista para abrir, generada con `python3 scripts/build.py` |
 | `docs/propuesta.md` | Plan del sistema y etapas |
+| `modulos/` | Servidor, firmware y simulador de los módulos para máquinas |
 
 ## Próximas etapas
 
