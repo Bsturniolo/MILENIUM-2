@@ -6,23 +6,25 @@
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
 <title>Milenium 2</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%20aria-hidden%3D%22true%22%3E%3Cdefs%3E%3CradialGradient%20id%3D%22lgPf%22%20cx%3D%2236%25%22%20cy%3D%2230%25%22%20r%3D%2275%25%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23a8ecff%22/%3E%3Cstop%20offset%3D%22.42%22%20stop-color%3D%22%233f8cf0%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23132c6e%22/%3E%3C/radialGradient%3E%3ClinearGradient%20id%3D%22lgRf%22%20x1%3D%220%22%20x2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%235ee0e6%22%20stop-opacity%3D%22.25%22/%3E%3Cstop%20offset%3D%22.5%22%20stop-color%3D%22%23d4fbff%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%235ee0e6%22%20stop-opacity%3D%22.25%22/%3E%3C/linearGradient%3E%3CclipPath%20id%3D%22lgCf%22%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2217%22/%3E%3C/clipPath%3E%3C/defs%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2223%22%20fill%3D%22%234fc3f7%22%20opacity%3D%22.16%22/%3E%3Cg%20transform%3D%22rotate%28-18%2032%2032%29%22%3E%3Cpath%20d%3D%22M6%2032a26%207%200%200%201%2052%200%22%20fill%3D%22none%22%20stroke%3D%22url%28%23lgRf%29%22%20stroke-width%3D%222.6%22/%3E%3C/g%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2217%22%20fill%3D%22url%28%23lgPf%29%22/%3E%3Cg%20clip-path%3D%22url%28%23lgCf%29%22%20fill%3D%22none%22%20stroke%3D%22%23c9f1ff%22%20stroke-width%3D%221.8%22%20opacity%3D%22.35%22%3E%3Cpath%20d%3D%22M13%2025q19-6%2038%200%22/%3E%3Cpath%20d%3D%22M13%2037q19%206%2038%200%22/%3E%3C/g%3E%3Cellipse%20cx%3D%2237%22%20cy%3D%2235%22%20rx%3D%223.6%22%20ry%3D%222.2%22%20fill%3D%22%230d2560%22%20opacity%3D%22.45%22/%3E%3Cg%20transform%3D%22rotate%28-18%2032%2032%29%22%3E%3Cpath%20d%3D%22M6%2032a26%207%200%200%200%2052%200%22%20fill%3D%22none%22%20stroke%3D%22url%28%23lgRf%29%22%20stroke-width%3D%222.6%22/%3E%3C/g%3E%3Ccircle%20cx%3D%2254%22%20cy%3D%2212%22%20r%3D%222.3%22%20fill%3D%22%23f6c25b%22/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
 /* Layout: barra superior con estado del turno, pestañas, y una mesa de trabajo por pestaña (Vender = buscador + ticket lado a lado). */
 :root{
-  --bg:#f3f5f4; --surface:#ffffff; --sunk:#e8ecea; --line:#d5dcd9; --ink:#14201c; --muted:#5b6a65;
-  --accent:#1f5bd6; --accent-ink:#ffffff; --accent-soft:#e3ebfb;
+  --bg:#eef3f9; --surface:#ffffff; --sunk:#e4ecf5; --line:#d0dbe8; --ink:#0e1a2c; --muted:#56667c;
+  --accent:#2554cc; --accent-ink:#ffffff; --accent-soft:#e2eafc; --teal:#0d8f9c; --violet:#6f52e0; --gold:#c98a12;
   --good:#1d7a4a; --good-soft:#e2f3e9; --warn:#a26300; --warn-soft:#fbefd9; --bad:#b4282d; --bad-soft:#f9e3e3;
+  --space:linear-gradient(118deg,#0a1433 0%,#142f6e 48%,#0c6f88 100%);
   --f-display:"Archivo",system-ui,sans-serif; --f-body:"IBM Plex Sans",system-ui,sans-serif; --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#0f1513; --surface:#17201d; --sunk:#1e2925; --line:#2c3a35; --ink:#e6eeea; --muted:#9aaba4;
-  --accent:#6e9bff; --accent-ink:#0b1220; --accent-soft:#1c2a47;
+  --bg:#080e1d; --surface:#111a2e; --sunk:#18233b; --line:#25324d; --ink:#e7eefb; --muted:#9caccb;
+  --accent:#6f9bff; --accent-ink:#071026; --accent-soft:#1a2a4d; --teal:#3fd0dc; --violet:#a18cff; --gold:#f2c25b;
   --good:#5ccf8f; --good-soft:#163525; --warn:#f0b357; --warn-soft:#3a2b12; --bad:#ff7b7f; --bad-soft:#3d1b1d; color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#0f1513; --surface:#17201d; --sunk:#1e2925; --line:#2c3a35; --ink:#e6eeea; --muted:#9aaba4;
-  --accent:#6e9bff; --accent-ink:#0b1220; --accent-soft:#1c2a47;
+  --bg:#080e1d; --surface:#111a2e; --sunk:#18233b; --line:#25324d; --ink:#e7eefb; --muted:#9caccb;
+  --accent:#6f9bff; --accent-ink:#071026; --accent-soft:#1a2a4d; --teal:#3fd0dc; --violet:#a18cff; --gold:#f2c25b;
   --good:#5ccf8f; --good-soft:#163525; --warn:#f0b357; --warn-soft:#3a2b12; --bad:#ff7b7f; --bad-soft:#3d1b1d; color-scheme:dark}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45}
@@ -101,6 +103,32 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--sunk)}
 code{font-family:var(--f-mono);font-size:.92em;background:var(--sunk);padding:1px 5px;border-radius:4px}
 .qrbox{display:flex;gap:12px;align-items:center}
 .qrfake{width:76px;height:76px;flex:none;border-radius:6px;background:repeating-conic-gradient(var(--ink) 0 25%,var(--surface) 0 50%) 0 0/19px 19px;border:4px solid var(--surface);outline:1px solid var(--line)}
+/* ---- Identidad: banda "espacio" con el planeta, acentos azul, turquesa, violeta y dorado ---- */
+body{background:radial-gradient(900px 420px at 105% -8%,color-mix(in srgb,var(--teal) 14%,transparent),transparent 70%),radial-gradient(700px 380px at -10% 0%,color-mix(in srgb,var(--violet) 10%,transparent),transparent 70%),var(--bg);background-attachment:fixed;min-height:100vh}
+header.top{margin-top:16px;padding:14px 18px;border-radius:16px;color:#fff;background:radial-gradient(1.2px 1.2px at 12% 30%,#fff9,transparent),radial-gradient(1px 1px at 28% 72%,#fff8,transparent),radial-gradient(1.4px 1.4px at 46% 18%,#fffa,transparent),radial-gradient(1px 1px at 63% 60%,#fff7,transparent),radial-gradient(1.2px 1.2px at 78% 26%,#fff9,transparent),radial-gradient(1px 1px at 90% 78%,#fff7,transparent),radial-gradient(260px 140px at 85% 120%,#3fd0dc55,transparent),var(--space);box-shadow:0 10px 30px -14px #0a1433aa}
+.brand{align-items:center;gap:12px}
+.brand .logo{width:52px;height:52px;flex:none;filter:drop-shadow(0 0 10px #4fc3f766)}
+.brand .bname{display:block;line-height:1.05;color:#fff}
+.brand .bname em{font-style:normal;background:linear-gradient(90deg,#f6c25b,#ffe39b);-webkit-background-clip:text;background-clip:text;color:transparent}
+.brand small{display:block;color:#bcd3f5;margin-top:2px}
+header.top .pill.ok{background:#5ee0b42b;color:#8ff0c8} header.top .pill.off{background:#f6c25b30;color:#ffd98a} header.top .pill.bad{background:#ff7b7f30;color:#ffb3b5}
+header.top .muted{color:#c4d6f2}
+nav.tabs{margin-top:10px}
+nav.tabs a{border-radius:8px 8px 0 0}
+nav.tabs a:hover{color:var(--ink);background:color-mix(in srgb,var(--accent) 7%,transparent)}
+nav.tabs a[aria-current="page"]{color:var(--accent);border-bottom:3px solid transparent;border-image:linear-gradient(90deg,var(--accent),var(--teal)) 1}
+.panel,.ticket,.kpi{box-shadow:0 1px 2px #0e1a2c0d,0 6px 18px -12px #14306f33}
+.panel>h2:first-child,.ticket>h2:first-child{display:flex;align-items:center;gap:8px}
+.panel>h2:first-child::before,.ticket>h2:first-child::before{content:"";width:9px;height:9px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--teal));flex:none}
+button.primary{background:linear-gradient(135deg,var(--accent),var(--teal));border-color:transparent}
+button.primary:hover{background:linear-gradient(135deg,var(--accent),var(--teal));filter:brightness(1.08)}
+.kpi{border-top:3px solid var(--accent)} .kpis .kpi:nth-child(4n+2){border-top-color:var(--teal)} .kpis .kpi:nth-child(4n+3){border-top-color:var(--violet)} .kpis .kpi:nth-child(4n+4){border-top-color:var(--gold)}
+.ticket{border-top:3px solid var(--teal)}
+.ticket .total strong{background:linear-gradient(90deg,var(--accent),var(--teal));-webkit-background-clip:text;background-clip:text;color:transparent}
+.chip[aria-pressed="true"]{background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 16%,var(--surface)),color-mix(in srgb,var(--teal) 16%,var(--surface)));border-color:var(--accent)}
+.bar{background:linear-gradient(90deg,var(--accent),var(--teal))}
+.tag.acc{background:var(--accent-soft);color:var(--accent)}
+@media (max-width:560px){.brand .logo{width:42px;height:42px}.brand{font-size:21px}header.top{padding:12px 14px}}
 #imprimir{display:none}
 @media print{.wrap,#toast{display:none!important}#imprimir{display:block;color:#000;font:14px/1.5 system-ui,sans-serif}#imprimir table{width:100%;border-collapse:collapse}#imprimir th,#imprimir td{border-bottom:1px solid #999;padding:4px 6px;text-align:left}#imprimir .r{text-align:right}}
 tr.sel td{background:var(--accent-soft,rgba(0,0,0,.05))}
@@ -111,7 +139,7 @@ tr.sel td{background:var(--accent-soft,rgba(0,0,0,.05))}
 
 <div class="wrap">
   <header class="top">
-    <div class="brand">Milenium 2 <small>gestión de mercadería y equipos</small></div>
+    <div class="brand"><svg class="logo" viewBox="0 0 64 64" aria-hidden="true"><defs><radialGradient id="lgPh" cx="36%" cy="30%" r="75%"><stop offset="0" stop-color="#a8ecff"/><stop offset=".42" stop-color="#3f8cf0"/><stop offset="1" stop-color="#132c6e"/></radialGradient><linearGradient id="lgRh" x1="0" x2="1"><stop offset="0" stop-color="#5ee0e6" stop-opacity=".25"/><stop offset=".5" stop-color="#d4fbff"/><stop offset="1" stop-color="#5ee0e6" stop-opacity=".25"/></linearGradient><clipPath id="lgCh"><circle cx="32" cy="32" r="17"/></clipPath></defs><circle cx="32" cy="32" r="23" fill="#4fc3f7" opacity=".16"/><g transform="rotate(-18 32 32)"><path d="M6 32a26 7 0 0 1 52 0" fill="none" stroke="url(#lgRh)" stroke-width="2.6"/></g><circle cx="32" cy="32" r="17" fill="url(#lgPh)"/><g clip-path="url(#lgCh)" fill="none" stroke="#c9f1ff" stroke-width="1.8" opacity=".35"><path d="M13 25q19-6 38 0"/><path d="M13 37q19 6 38 0"/></g><ellipse cx="37" cy="35" rx="3.6" ry="2.2" fill="#0d2560" opacity=".45"/><g transform="rotate(-18 32 32)"><path d="M6 32a26 7 0 0 0 52 0" fill="none" stroke="url(#lgRh)" stroke-width="2.6"/></g><circle cx="54" cy="12" r="2.3" fill="#f6c25b"/></svg><div><span class="bname">Milenium <em>2</em></span><small>gestión de mercadería y equipos</small></div></div>
     <div class="row"><span id="estadoTurno" class="pill off">Cargando…</span><span id="estadoDatos" class="tiny muted"></span></div>
   </header>
   <nav class="tabs" aria-label="Secciones">
