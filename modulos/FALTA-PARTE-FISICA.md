@@ -7,50 +7,57 @@
 - [ ] Comprar los materiales de la prueba de mesa (abajo)
 - [ ] Armar la prueba de mesa con un foquito y probar el firmware en una placa real
 - [ ] Subir el servidor a internet con HTTPS y pegar su certificado raíz en el firmware (`CA_RAIZ`)
-- [ ] Elegir la primera máquina real y ver qué tipo de entrada tiene (monedero, fichas o solo enchufe)
+- [ ] Elegir la primera máquina real y ver cómo se habilita (si alcanza con darle corriente o si necesita un pulso de arranque)
 - [ ] Armar el primer módulo en una caja cerrada, con un electricista matriculado para la parte de 220 V
 - [ ] Probar 1 semana en una sola máquina antes de instalar más
 - [ ] Conectar Mercado Pago de verdad (hoy el pago con QR está simulado)
-- [ ] Conectar la app (pestaña Equipos) con el servidor (hoy la app no le habla al servidor)
+- [x] Conectar la app (pestaña Equipos) con el servidor: vincular con código, ver si el módulo responde, encender al cobrar y detener
 
-## Cómo se conecta a una máquina: dos formas
+## Cómo se cobra y se habilita una máquina
 
-| Forma | Cuándo usarla | Cómo funciona | Riesgo |
+En Argentina se paga con **QR de Mercado Pago, en pesos**. No usamos monedero ni fichas.
+
+1. El cliente escanea el QR de la máquina y paga.
+2. Mercado Pago le avisa al servidor que el pago entró (hoy está simulado).
+3. El servidor le manda una orden firmada al módulo de esa máquina.
+4. El módulo la habilita y la corta solo cuando termina el tiempo pagado.
+
+Para habilitar la máquina hay dos variantes. En el firmware se eligen con `salida rele` o `salida pulso`:
+
+| Variante | Cuándo | Cómo funciona | Riesgo |
 | --- | --- | --- | --- |
-| **A. "Dar la ficha"** (recomendada) | La máquina ya tiene monedero o lector de fichas (casi todos los lavarropas y cafeteras comerciales) | El módulo cierra, por un instante, el mismo contacto que cierra la moneda al caer. Va en paralelo al monedero con un optoacoplador, sin tocar la parte eléctrica de 220 V | Bajo: solo cables de señal |
-| **B. Cortar la corriente** | Máquinas sin monedero (aspiradora de lavadero, hidrolavadora) | El módulo enciende y apaga la alimentación con un relé o un relé de estado sólido (SSR) del tamaño correcto para el consumo de la máquina | Alto: es 220 V. Lo instala un electricista matriculado, con térmica y disyuntor |
-
-En el firmware se elige con `salida pulso` (forma A) o `salida rele` (forma B).
+| **Relé** (la normal) | Casi todas: aspiradoras, hidrolavadoras, lavarropas, cafeteras | El módulo da corriente a la máquina con un relé o un relé de estado sólido (SSR) del tamaño correcto para su consumo, y la corta al terminar | Alto: es 220 V. Lo instala un electricista matriculado, con térmica y disyuntor |
+| **Pulso** (opcional) | Máquinas que quedan con corriente y arrancan con un botón o contacto de inicio | El módulo cierra un instante ese contacto, con un optoacoplador, en lugar del botón | Bajo: solo cables de señal, pero hay que conocer bien la máquina |
 
 ## Materiales
 
-Precios aproximados por unidad, en dólares, de noviembre de 2026. Conviene confirmar en MercadoLibre antes de comprar.
+Los precios en pesos cambian seguido: buscarlos en MercadoLibre al momento de comprar y anotarlos acá.
 
 ### Prueba de mesa (una sola vez, sin 220 V)
 
-| Material | Para qué | Aprox. |
+| Material | Para qué | Precio ($) |
 | --- | --- | --- |
-| ESP32 DevKit V1 (38 pines) | El cerebro del módulo, con Wi-Fi | US$ 6 |
-| Módulo relé de 1 canal, 5 V, optoacoplado | Prender el foquito como si fuera la máquina | US$ 2 |
-| Foquito o LED de 5 V y protoboard con cables dupont | Ver que enciende y apaga a tiempo | US$ 4 |
-| Pulsador | Simular "la máquina está funcionando" (entrada de uso) | US$ 0,5 |
-| Microswitch | Simular "abrieron la caja" | US$ 0,5 |
-| Cable USB de datos | Cargar el firmware desde la compu | US$ 2 |
+| ESP32 DevKit V1 (38 pines) | El cerebro del módulo, con Wi-Fi |  |
+| Módulo relé de 1 canal, 5 V, optoacoplado | Prender el foquito como si fuera la máquina |  |
+| Foquito o LED de 5 V y protoboard con cables dupont | Ver que enciende y apaga a tiempo |  |
+| Pulsador | Simular "la máquina está funcionando" (entrada de uso) |  |
+| Microswitch | Simular "abrieron la caja" |  |
+| Cable USB de datos | Cargar el firmware desde la compu |  |
 
 ### Por cada máquina real
 
-| Material | Para qué | Aprox. |
+| Material | Para qué | Precio ($) |
 | --- | --- | --- |
-| ESP32 DevKit V1 | Cerebro del módulo | US$ 6 |
-| Optoacoplador PC817 + resistencias (forma A) o relé/SSR del amperaje de la máquina (forma B) | Salida a la máquina | US$ 1 a 12 |
-| Módulo detector de 220 V optoacoplado | Saber si la máquina está funcionando (alerta de uso sin pago) | US$ 3 |
-| Fuente 220 V → 5 V chica (tipo HLK-PM01) | Alimentar el módulo | US$ 3 |
-| Fusible con portafusible | Protección | US$ 1 |
-| Caja estanca IP54 o IP65 con tornillos | Que no se pueda tocar ni mojar | US$ 4 |
-| Microswitch en la tapa | Avisar si alguien abre la caja | US$ 0,5 |
-| Borneras y precintos | Conexiones firmes | US$ 1 |
+| ESP32 DevKit V1 | Cerebro del módulo |  |
+| Relé o SSR del amperaje de la máquina (o optoacoplador PC817 + resistencias para la variante pulso) | Salida a la máquina |  |
+| Módulo detector de 220 V optoacoplado | Saber si la máquina está funcionando (alerta de uso sin pago) |  |
+| Fuente 220 V → 5 V chica (tipo HLK-PM01) | Alimentar el módulo |  |
+| Fusible con portafusible | Protección |  |
+| Caja estanca IP54 o IP65 con tornillos | Que no se pueda tocar ni mojar |  |
+| Microswitch en la tapa | Avisar si alguien abre la caja |  |
+| Borneras y precintos | Conexiones firmes |  |
 
-**Total aproximado por máquina: US$ 20 a 30**, más la mano de obra de instalación.
+**Total por máquina: a completar**, más la mano de obra de instalación.
 
 ## Conexiones (pines del firmware)
 
@@ -86,5 +93,5 @@ El módulo **siempre arranca apagado**: si se corta la luz a la mitad de un uso,
 
 - No conectar nada a 220 V sin un electricista matriculado.
 - No usar `setInsecure()` en el firmware: deja la conexión sin verificar.
-- No cambiar la máquina por dentro (placas originales, cableado de motor): si la máquina tiene monedero, usar la forma A.
+- No cambiar la máquina por dentro (placas originales, cableado de motor): el módulo solo maneja la corriente de entrada o el contacto de arranque.
 - No instalar en muchas máquinas antes de probar una sola durante una semana.

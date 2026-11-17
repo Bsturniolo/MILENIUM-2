@@ -16,7 +16,7 @@
     wifi <red> <clave>
     servidor https://tu-servidor.com
     salida rele        (mantiene la máquina encendida el tiempo pagado)
-    salida pulso       (da un pulso de "ficha" al empezar, para máquinas con monedero)
+    salida pulso       (da un pulso de arranque, para máquinas que arrancan con un botón)
     vincular 123456
     estado
     borrar             (olvida todo; hay que volver a vincular)
@@ -32,7 +32,7 @@
 #include "mbedtls/md.h"
 
 // ---------------- pines (ajustar según la placa armada) ----------------
-const int PIN_SALIDA = 26;      // al relé o al optoacoplador que da la ficha
+const int PIN_SALIDA = 26;      // al relé, o al optoacoplador del pulso de arranque
 const int PIN_EN_USO = 27;      // entrada aislada: LOW = la máquina está funcionando
 const int PIN_TAPA = 14;        // microswitch de la caja: LOW = cerrada
 const int PIN_LED = 2;

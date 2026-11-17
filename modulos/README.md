@@ -26,7 +26,7 @@ Sistema propio para que las máquinas (lavarropas, cafeteras, aspiradoras, etc.)
 cd modulos/servidor
 python -m venv .venv && source .venv/bin/activate   # en Windows: .venv\Scripts\activate
 pip install -r requirements.txt -r requirements-dev.txt
-pytest -q                                            # 13 pruebas de punta a punta
+pytest -q                                            # 16 pruebas de punta a punta
 MILENIUM_ADMIN_TOKEN=cambiar-por-un-token-largo uvicorn app:app --reload
 ```
 
@@ -48,11 +48,21 @@ curl -X POST localhost:8000/api/pagos/simulado -H "Authorization: Bearer cambiar
 
 La documentación de todas las rutas queda en `http://localhost:8000/docs`.
 
+### Usarlo desde la app
+
+1. Abrí la app en `http://localhost:8000/app/` (el servidor la trae incluida). También funciona desde la página de GitHub.
+2. En **Equipos → Servidor** poné la dirección del servidor y el token de administrador. Se guardan solo en ese navegador.
+3. En **Máquinas**, agregá un equipo y tocá **Vincular módulo**. Con el código que aparece, arrancá el módulo simulado: `python ../simulador/modulo_simulado.py --codigo <código>`.
+4. Cuando la tarjeta diga "Módulo conectado", cobrá con QR (simulado): la máquina pasa a "Funcionando" y se apaga sola al terminar.
+
+El servidor solo acepta pedidos de la app desde la página de GitHub y desde la compu (`localhost`). Para otra dirección: `MILENIUM_ORIGENES="https://mi-pagina.com"`.
+
 ## Rutas principales
 
 | Ruta | Quién la usa | Para qué |
 | --- | --- | --- |
-| `POST /api/equipos` · `GET /api/equipos` | App | Crear y listar equipos, con su módulo y si está conectado |
+| `POST /api/equipos` · `GET /api/equipos` · `PATCH /api/equipos/{id}` | App | Crear, listar y editar equipos, con su módulo y si está conectado |
+| `GET /app/` | Navegador | La app completa, servida por el mismo servidor |
 | `POST /api/equipos/{id}/codigo` | App | Código de 6 dígitos para vincular un módulo (vence en 10 min) |
 | `POST /api/equipos/{id}/activar` | App | Cobro hecho: encender por el tiempo pagado |
 | `POST /api/equipos/{id}/detener` · `/servicio` · `/desvincular` | App | Apagar, poner fuera de servicio, quitar el módulo |
@@ -63,6 +73,5 @@ La documentación de todas las rutas queda en `http://localhost:8000/docs`.
 
 ## Próximos pasos de software
 
-- Conectar la pestaña Equipos de la app con este servidor.
 - Reemplazar el pago simulado por el aviso real de Mercado Pago (verificando su firma y consultando el pago antes de activar).
 - Subir el servidor a internet con HTTPS.

@@ -170,3 +170,27 @@ def test_vincular_otro_modulo_reemplaza_al_anterior(c):
     assert viejo.modulo_id != nuevo.modulo_id
     with pytest.raises(Exception):
         viejo.ciclo()  # el módulo viejo ya no es reconocido
+
+
+def test_editar_equipo(c):
+    e = nuevo_equipo(c)
+    r = c.patch(f"/api/equipos/{e['id']}", json={"nombre": "Lavarropas grande", "precio": 9000}, headers=ADMIN)
+    assert r.status_code == 200 and r.json()["nombre"] == "Lavarropas grande" and r.json()["precio"] == 9000
+    assert r.json()["minutos"] == 40  # lo que no se manda queda igual
+    assert c.patch(f"/api/equipos/{e['id']}", json={"precio": 1}).status_code == 401
+    assert c.patch("/api/equipos/999", json={"precio": 1}, headers=ADMIN).status_code == 404
+
+
+def test_la_app_se_abre_desde_el_servidor(c):
+    r = c.get("/app/")
+    assert r.status_code == 200 and "Milenium 2" in r.text
+
+
+def test_cors_solo_para_la_pagina_y_la_compu(c):
+    pre = {"Access-Control-Request-Method": "GET", "Access-Control-Request-Headers": "authorization"}
+    ok = c.options("/api/equipos", headers={"Origin": "https://bsturniolo.github.io", **pre})
+    assert ok.headers.get("access-control-allow-origin") == "https://bsturniolo.github.io"
+    local = c.options("/api/equipos", headers={"Origin": "http://localhost:5500", **pre})
+    assert local.headers.get("access-control-allow-origin") == "http://localhost:5500"
+    otro = c.options("/api/equipos", headers={"Origin": "https://sitio-cualquiera.com", **pre})
+    assert "access-control-allow-origin" not in otro.headers

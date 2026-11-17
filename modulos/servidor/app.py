@@ -22,7 +22,11 @@ import threading
 import time
 from typing import Optional
 
+import pathlib
+
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
 try:  # funciona como paquete (tests) y como script (uvicorn app:app)
@@ -36,6 +40,9 @@ VIGENCIA_CODIGO_MS = 10 * 60_000  # el código de vinculación dura 10 minutos
 VIGENCIA_ORDEN_MS = 60_000        # una orden que el módulo no tomó en 1 minuto ya no sirve
 DESFASE_MAX_MS = 120_000          # tolerancia de reloj entre módulo y servidor
 MAX_SEGUNDOS_USO = 4 * 3600       # tope de seguridad por uso
+
+
+RAIZ_REPO = pathlib.Path(__file__).resolve().parents[2]
 
 
 def ahora_ms() -> int:
@@ -128,6 +135,13 @@ class EquipoNuevo(BaseModel):
     minutos: int = Field(default=30, ge=1, le=240)
 
 
+class EquipoCambios(BaseModel):
+    nombre: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    modo: Optional[str] = Field(default=None, pattern="^(uso|minuto)$")
+    precio: Optional[float] = Field(default=None, gt=0)
+    minutos: Optional[int] = Field(default=None, ge=1, le=240)
+
+
 class Activacion(BaseModel):
     pago_ref: str = Field(min_length=1, max_length=120)
     medio: str = Field(min_length=1, max_length=40)
@@ -166,6 +180,31 @@ def crear_app(ruta_base: str | None = None, token_admin: str | None = None) -> F
 
     app = FastAPI(title="Milenium 2 · módulos")
     app.state.base = base
+
+    # La app se puede abrir desde la página de GitHub o desde la compu (localhost).
+    # Otros orígenes se agregan con MILENIUM_ORIGENES="https://a.com,https://b.com".
+    origenes = [o.strip() for o in os.environ.get("MILENIUM_ORIGENES", "").split(",") if o.strip()]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origenes or ["https://bsturniolo.github.io"],
+        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+        allow_methods=["GET", "POST", "PATCH"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
+
+    # La propia app (index.html del repo) servida en /app: así no hace falta otra página.
+    pagina = RAIZ_REPO / "index.html"
+
+    @app.get("/", include_in_schema=False)
+    def raiz():
+        return RedirectResponse("/app/")
+
+    @app.get("/app", include_in_schema=False)
+    @app.get("/app/", include_in_schema=False)
+    def la_app():
+        if not pagina.exists():
+            raise HTTPException(404, "No se encontró index.html")
+        return FileResponse(pagina, media_type="text/html")
 
     # ---------- autenticación de la app (administrador)
     def admin(authorization: str = Header(default="")):
@@ -219,6 +258,15 @@ def crear_app(ruta_base: str | None = None, token_admin: str | None = None) -> F
     @app.get("/api/equipos", dependencies=[Depends(admin)])
     def listar_equipos():
         return [vista_equipo(e) for e in base.q("SELECT * FROM equipos ORDER BY nombre")]
+
+    @app.patch("/api/equipos/{equipo_id}", dependencies=[Depends(admin)])
+    def cambiar_equipo(equipo_id: int, d: EquipoCambios):
+        e = equipo_o_404(equipo_id)
+        nuevo = {k: v for k, v in d.model_dump().items() if v is not None}
+        if nuevo:
+            campos = ", ".join(f"{k} = ?" for k in nuevo)  # claves fijas del modelo, no del usuario
+            base.ejec(f"UPDATE equipos SET {campos} WHERE id = ?", (*nuevo.values(), e["id"]))
+        return vista_equipo(equipo_o_404(equipo_id))
 
     @app.post("/api/equipos/{equipo_id}/codigo", dependencies=[Depends(admin)])
     def codigo_vinculacion(equipo_id: int):

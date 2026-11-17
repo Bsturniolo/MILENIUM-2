@@ -94,6 +94,11 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--sunk)}
 .eqcard.on{border-color:var(--good);box-shadow:inset 0 3px 0 var(--good)}
 .eqname{font-family:var(--f-display);font-size:17px}
 .countdown{font-family:var(--f-mono);font-size:40px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--good);line-height:1}
+.eqalerta{margin-top:10px;padding:8px 10px;border-radius:8px;background:var(--warn-soft);font-size:13.5px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.eqalerta.bad{background:var(--bad-soft)}
+.codigo{font-family:var(--f-mono);font-size:40px;font-weight:600;letter-spacing:.12em}
+.pasos{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px}
+code{font-family:var(--f-mono);font-size:.92em;background:var(--sunk);padding:1px 5px;border-radius:4px}
 .qrbox{display:flex;gap:12px;align-items:center}
 .qrfake{width:76px;height:76px;flex:none;border-radius:6px;background:repeating-conic-gradient(var(--ink) 0 25%,var(--surface) 0 50%) 0 0/19px 19px;border:4px solid var(--surface);outline:1px solid var(--line)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
@@ -355,84 +360,221 @@ async function guardarAjuste() {
 // ----- Equipos (máquinas que se activan al pagar) -----
 const TIPOS_EQ = ['Lavarropas', 'Secarropas', 'Cafetera', 'Aspiradora', 'Hidrolavadora', 'Expendedora', 'Otro'];
 const eq = id => S.equipos.find(x => x.id === id);
-const restante = x => x.estado === 'en_uso' && x.fin ? Math.max(0, x.fin - Date.now()) : 0;
 const mmss = ms => { const t = Math.ceil(ms / 1000), m = Math.floor(t / 60), s = t % 60; return m + ':' + String(s).padStart(2, '0'); };
 const precioEq = (x, min) => r2(x.modo === 'minuto' ? x.precio * min : x.precio);
+const GUIA_URL = 'https://github.com/Bsturniolo/MILENIUM-2/blob/main/modulos/FALTA-PARTE-FISICA.md';
+
+// --- conexión con el servidor de módulos (se guarda solo en este navegador)
+S.eqTab = 'maquinas'; S.srvEquipos = {}; S.srvOk = null; S.srvError = ''; S.srvAlertas = []; S.vinculo = null;
+S.srv = (() => { try { const v = JSON.parse(localStorage.getItem('milenium-servidor') || 'null'); if (v) return v; } catch (e) {} return location.pathname.startsWith('/app') ? { url: location.origin, token: '' } : { url: '', token: '' }; })();
+const srvListo = () => !!(S.srv.url && S.srv.token);
+async function api(metodo, ruta, datos) {
+  let r;
+  try { r = await fetch(S.srv.url.replace(/\/$/, '') + ruta, { method: metodo, headers: { 'Authorization': 'Bearer ' + S.srv.token, 'Content-Type': 'application/json' }, body: datos ? JSON.stringify(datos) : undefined }); }
+  catch (e) { const err = new Error('No se pudo llegar al servidor. Revisá la dirección y que esté encendido.'); err.red = true; throw err; }
+  let j = null; try { j = await r.json(); } catch (e) {}
+  if (!r.ok) throw new Error((j && (typeof j.detail === 'string' ? j.detail : 'Datos inválidos')) || ('Error ' + r.status));
+  return j;
+}
+async function sincronizar() {
+  if (!srvListo()) { S.srvOk = null; return; }
+  try {
+    const lista = await api('GET', '/api/equipos');
+    S.srvEquipos = Object.fromEntries(lista.map(x => [x.id, x]));
+    S.srvAlertas = await api('GET', '/api/eventos?solo_alertas=true&limite=50');
+    S.srvOk = true; S.srvError = '';
+    if (S.vinculo) { const x = eq(S.vinculo.id); const sv = x && S.srvEquipos[x.servidorId]; if (sv && sv.modulo && sv.modulo.conectado && (!S.vinculo.moduloAntes || sv.modulo.id !== S.vinculo.moduloAntes)) { toast('Módulo vinculado a ' + x.nombre); S.vinculo = null; } }
+  } catch (e) { S.srvOk = false; S.srvError = e.message; }
+  const activo = document.activeElement;
+  if (vistaActual() === 'equipos' && !(activo && activo.matches('input,select'))) render();
+}
+setInterval(sincronizar, 5000);
+setTimeout(sincronizar, 300);
+
+// Estado del módulo físico de una máquina de la app
+function modulo(x) {
+  if (!srvListo()) return { tipo: 'sin', texto: 'Sin módulo físico' };
+  const sv = x.servidorId && S.srvEquipos[x.servidorId];
+  if (!sv || !sv.modulo) return { tipo: 'sin', texto: 'Sin módulo físico', sv };
+  return sv.modulo.conectado ? { tipo: 'ok', texto: 'Módulo conectado', sv } : { tipo: 'desc', texto: 'Módulo desconectado', sv };
+}
+function estadoEq(x) {  // con módulo, manda lo que dice el servidor
+  const m = modulo(x);
+  if (m.sv && m.sv.modulo) return { estado: m.sv.estado, fin: m.sv.fin_ms };
+  return { estado: x.estado, fin: x.fin };
+}
+
 function vEquipos() {
   const lista = S.equipos.filter(x => x.activo !== false).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  const sinModulo = lista.filter(x => modulo(x).tipo === 'sin');
+  const desconectados = lista.filter(x => modulo(x).tipo === 'desc');
+  const nAlertas = sinModulo.length + desconectados.length + S.srvAlertas.length;
+  const tabs = [['maquinas', 'Máquinas'], ['conectar', 'Conectar una máquina'], ['alertas', 'Alertas' + (nAlertas ? ` (${nAlertas})` : '')], ['servidor', 'Servidor']];
+  const sub = `<div class="chips" role="tablist" style="margin-bottom:16px">${tabs.map(([k, l]) => `<button class="chip" role="tab" data-eq-tab="${k}" aria-pressed="${S.eqTab === k}">${l}</button>`).join('')}</div>`;
+  const cuerpo = { maquinas: vMaquinas, conectar: vConectar, alertas: vAlertas, servidor: vServidor }[S.eqTab]({ lista, sinModulo, desconectados });
+  return sub + cuerpo;
+}
+
+function vMaquinas({ lista }) {
   const ini = new Date(); ini.setHours(0, 0, 0, 0);
   const hoy = S.ventas.filter(v => v.equipoId && !v.anulada && v.ts >= ini.getTime());
   const recaudo = id => r2(hoy.filter(v => v.equipoId === id).reduce((s, v) => s + v.total, 0));
   const usos = id => hoy.filter(v => v.equipoId === id).length;
-  const enUso = lista.filter(x => x.estado === 'en_uso').length;
+  const enUso = lista.filter(x => estadoEq(x).estado === 'en_uso').length;
   const t = turnoAbierto();
   const e = S.eqEdit ? eq(S.eqEdit) : null;
-  const form = (S.eqNuevo || e) ? `<section class="panel"><h2>${e ? 'Editar equipo' : 'Nuevo equipo'}</h2><form id="equipoForm" class="form">
+  const form = (S.eqNuevo || e) ? `<section class="panel" style="margin-bottom:16px"><h2>${e ? 'Editar equipo' : 'Nuevo equipo'}</h2><form id="equipoForm" class="form">
     <label class="full">Nombre<input id="eq_nombre" required placeholder="Ej: Lavarropas 1" value="${esc(e ? e.nombre : '')}"></label>
     <label>Tipo<select id="eq_tipo">${TIPOS_EQ.map(x => `<option ${e && e.tipo === x ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
     <label>Ubicación<input id="eq_ubic" placeholder="Ej: Lavadero, fondo" value="${esc(e ? e.ubicacion || '' : '')}"></label>
     <label>Se cobra<select id="eq_modo"><option value="uso" ${e && e.modo === 'uso' ? 'selected' : ''}>Por uso o ciclo</option><option value="minuto" ${e && e.modo === 'minuto' ? 'selected' : ''}>Por minuto</option></select></label>
     <label>Precio ($)<input id="eq_precio" type="number" min="0" step="0.01" required value="${e ? e.precio : ''}"></label>
     <label>Duración del ciclo (min)<input id="eq_min" type="number" min="1" step="1" value="${e ? e.minutos || 30 : 30}"></label>
-    <p class="tiny muted full">Por uso: un precio fijo y el equipo funciona lo que dura el ciclo. Por minuto: el precio es por minuto y al cobrar se eligen los minutos.</p>
-    <div class="row full"><button class="primary" type="submit">${e ? 'Guardar' : 'Agregar equipo'}</button><button type="button" data-eq-cancel>Cancelar</button>${e ? '<button type="button" class="danger" data-eq-baja>Dar de baja</button>' : ''}</div>
+    <p class="tiny muted full">Por uso: un precio fijo y la máquina funciona lo que dura el ciclo. Por minuto: el precio es por minuto y al cobrar se eligen los minutos.</p>
+    <div class="row full"><button class="primary" type="submit">${e ? 'Guardar' : 'Agregar equipo'}</button><button type="button" data-eq-cancel>Cancelar</button>${e && modulo(e).sv && modulo(e).sv.modulo ? '<button type="button" data-eq-desvincular>Quitar módulo</button>' : ''}${e ? '<button type="button" class="danger" data-eq-baja>Dar de baja</button>' : ''}</div>
   </form></section>` : '';
+  const vin = S.vinculo ? (() => { const x = eq(S.vinculo.id); const resta = S.vinculo.expira - Date.now(); return `<section class="panel vinculo" style="margin-bottom:16px"><h2>Vincular el módulo de ${esc(x ? x.nombre : '')}</h2>
+    <div class="row" style="gap:24px;align-items:flex-start"><div><span class="tiny muted">Código</span><div class="codigo">${esc(S.vinculo.codigo)}</div><span class="tiny muted">${resta > 0 ? 'Vence en <span class="countdown-sm" data-fin="' + S.vinculo.expira + '">' + mmss(resta) + '</span>' : 'Venció: pedí otro'}</span></div>
+    <ol class="pasos"><li>Enchufá el módulo de esa máquina y conectalo a la compu con el cable USB.</li><li>En el monitor serie escribí <code>vincular ${esc(S.vinculo.codigo)}</code>.</li><li>Esperá unos segundos: cuando se conecte, esta tarjeta se cierra sola y la máquina pasa a "Módulo conectado".</li></ol></div>
+    <div class="row"><button data-eq-nuevocodigo="${S.vinculo.id}">Pedir otro código</button><button data-eq-cerrarvinculo>Cerrar</button></div></section>`; })() : '';
   return `<div class="kpis"><div class="kpi"><span>Equipos</span><b>${lista.length}</b></div><div class="kpi"><span>Funcionando ahora</span><b>${enUso}</b></div><div class="kpi"><span>Usos hoy</span><b>${hoy.length}</b></div><div class="kpi"><span>Recaudado hoy</span><b>${fmt(hoy.reduce((s, v) => s + v.total, 0))}</b></div></div>
   ${!t && S.loaded ? '<div class="notice" style="margin-bottom:16px">Para cobrar y activar equipos, primero abrí la caja en la pestaña <a href="#caja">Caja</a>.</div>' : ''}
-  <div class="notice" style="margin-bottom:16px"><b>Falta la parte física.</b> Por ahora el cobro y el encendido son simulados: todavía no hay módulos instalados en las máquinas. Los materiales y los pasos están en <a href="https://github.com/Bsturniolo/MILENIUM-2/blob/main/modulos/FALTA-PARTE-FISICA.md" target="_blank" rel="noopener">FALTA-PARTE-FISICA.md</a>.</div>
-  <div class="row" style="justify-content:space-between;margin-bottom:12px"><h2 style="margin:0">Equipos automáticos</h2>${!S.eqNuevo && !e ? '<button class="primary" data-eq-nuevo>Agregar equipo</button>' : ''}</div>
-  ${form}
-  ${lista.length ? `<div class="eqgrid">${lista.map(x => {
-    const p = S.eqPago && S.eqPago.id === x.id ? S.eqPago : null;
-    const est = x.estado === 'en_uso' ? '<span class="pill ok">Funcionando</span>' : x.estado === 'fuera' ? '<span class="pill bad">Fuera de servicio</span>' : '<span class="pill off">Libre</span>';
-    let cuerpo = '';
-    if (x.estado === 'en_uso') cuerpo = `<div class="countdown" data-fin="${x.fin}" data-eqid="${x.id}">${mmss(restante(x))}</div><p class="tiny muted">Termina ${fecha(x.fin)} · cobrado ${fmt(x.monto || 0)}</p><button data-eq-detener="${x.id}">Detener ahora</button>`;
-    else if (x.estado === 'fuera') cuerpo = `<p class="muted">No se puede cobrar hasta que vuelva a estar en servicio.</p><button data-eq-fuera="${x.id}">Volver a poner en servicio</button>`;
-    else if (p && p.esperandoQR) cuerpo = `<div class="qrbox" aria-label="Código QR simulado"><div class="qrfake"></div><div><b>Esperando el pago con QR</b><br><span class="money">${fmt(p.monto)}</span><br><span class="tiny muted">Simulado: en la versión con servidor, Mercado Pago avisa solo cuando entra el pago.</span></div></div>
-      <div class="row"><button class="primary" data-eq-qrok="${x.id}">Simular pago recibido</button><button data-eq-cancelpago>Cancelar</button></div>`;
-    else if (p) cuerpo = `<form id="eqCobroForm" class="stack" style="gap:10px">${x.modo === 'minuto' ? `<label>Minutos<input id="eqc_min" type="number" min="1" step="1" value="${p.minutos}"></label>` : ''}
-      <div class="chips" role="group" aria-label="Medio de pago">${MEDIOS.map(m => `<button type="button" class="chip" data-eq-medio="${m}" aria-pressed="${p.medio === m}">${m}</button>`).join('')}</div>
-      <div class="row"><button class="primary" type="submit">Cobrar ${fmt(precioEq(x, p.minutos))} y activar</button><button type="button" data-eq-cancelpago>Cancelar</button></div></form>`;
-    else cuerpo = `<p class="money" style="font-size:20px;margin:0">${fmt(x.precio)} <span class="tiny muted">${x.modo === 'minuto' ? 'por minuto' : 'por uso · ' + (x.minutos || 30) + ' min'}</span></p>
-      <div class="row"><button class="primary" data-eq-cobrar="${x.id}" ${!t ? 'disabled' : ''}>Cobrar y activar</button><button class="small" data-eq-fuera="${x.id}">Fuera de servicio</button></div>`;
-    return `<article class="panel eqcard ${x.estado === 'en_uso' ? 'on' : ''}"><div class="row" style="justify-content:space-between"><div><b class="eqname">${esc(x.nombre)}</b><br><span class="tiny muted">${esc(x.tipo || '')}${x.ubicacion ? ' · ' + esc(x.ubicacion) : ''}</span></div>${est}</div>
-      <div class="stack" style="gap:10px;margin-top:12px">${cuerpo}</div>
-      <div class="row tiny muted" style="justify-content:space-between;margin-top:12px;border-top:1px solid var(--line);padding-top:8px"><span>Hoy: ${usos(x.id)} usos · <span class="money">${fmt(recaudo(x.id))}</span></span>${x.estado !== 'en_uso' ? `<button class="small" data-eq-editar="${x.id}">Editar</button>` : ''}</div></article>`;
-  }).join('')}</div>` : `<div class="empty">${S.loaded ? 'Todavía no hay equipos. Agregá uno: un lavarropas, una cafetera o lo que quieras cobrar por uso.' : 'Cargando equipos…'}</div>`}
+  <div class="row" style="justify-content:space-between;margin-bottom:12px"><h2 style="margin:0">Máquinas</h2>${!S.eqNuevo && !e ? '<button class="primary" data-eq-nuevo>Agregar equipo</button>' : ''}</div>
+  ${form}${vin}
+  ${lista.length ? `<div class="eqgrid">${lista.map(x => tarjetaEq(x, t, usos(x.id), recaudo(x.id))).join('')}</div>` : `<div class="empty">${S.loaded ? 'Todavía no hay equipos. Agregá uno: un lavarropas, una cafetera o lo que quieras cobrar por uso.' : 'Cargando equipos…'}</div>`}
   <section class="panel" style="margin-top:16px"><h2>Últimos usos</h2>${S.ventas.filter(v => v.equipoId).length ? `<div class="tablebox"><table><thead><tr><th>Fecha</th><th>Equipo</th><th>Pago</th><th class="r">Importe</th></tr></thead><tbody>
-    ${S.ventas.filter(v => v.equipoId).slice(0, 30).map(v => `<tr><td class="num">${fecha(v.ts)}</td><td>${esc(v.items[0] ? v.items[0].nombre : '')}</td><td>${esc(v.pago)}</td><td class="r money">${v.anulada ? `<s>${fmt(v.total)}</s>` : fmt(v.total)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Cada vez que se cobra y activa un equipo, queda anotado acá y en los reportes.</p>'}</section>`;
+    ${S.ventas.filter(v => v.equipoId).slice(0, 30).map(v => `<tr><td class="num">${fecha(v.ts)}</td><td>${esc(v.items[0] ? v.items[0].nombre : '')}${v.encendidoReal ? '' : ' <span class="tag">sin módulo</span>'}</td><td>${esc(v.pago)}</td><td class="r money">${v.anulada ? `<s>${fmt(v.total)}</s>` : fmt(v.total)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Cada vez que se cobra y activa un equipo, queda anotado acá y en los reportes.</p>'}</section>`;
 }
+
+function tarjetaEq(x, t, nUsos, recaudado) {
+  const m = modulo(x), { estado, fin } = estadoEq(x);
+  const p = S.eqPago && S.eqPago.id === x.id ? S.eqPago : null;
+  const est = estado === 'en_uso' ? '<span class="pill ok">Funcionando</span>' : estado === 'fuera' ? '<span class="pill bad">Fuera de servicio</span>' : '<span class="pill off">Libre</span>';
+  const modTag = m.tipo === 'ok' ? '<span class="tag good">Módulo conectado</span>' : m.tipo === 'desc' ? '<span class="tag bad">Módulo desconectado</span>' : '';
+  const alerta = m.tipo === 'sin' ? `<div class="eqalerta"><b>Sin módulo físico.</b> Cobrar no enciende la máquina: solo registra la venta.${srvListo() ? ` <button class="small" data-eq-vincular="${x.id}">Vincular módulo</button>` : ' <a href="#equipos" data-eq-tab="servidor">Configurar servidor</a>'}</div>`
+    : m.tipo === 'desc' ? '<div class="eqalerta bad"><b>El módulo no responde.</b> Revisá que la máquina tenga luz y Wi-Fi. No se puede cobrar hasta que vuelva.</div>' : '';
+  let cuerpo = '';
+  if (estado === 'en_uso') cuerpo = `<div class="countdown" data-fin="${fin || 0}">${mmss(Math.max(0, (fin || 0) - Date.now()))}</div><p class="tiny muted">Termina ${fin ? fecha(fin) : '—'}</p><button data-eq-detener="${x.id}">Detener ahora</button>`;
+  else if (estado === 'fuera') cuerpo = `<p class="muted">No se puede cobrar hasta que vuelva a estar en servicio.</p><button data-eq-fuera="${x.id}">Volver a poner en servicio</button>`;
+  else if (p && p.esperandoQR) cuerpo = `<div class="qrbox" aria-label="Código QR simulado"><div class="qrfake"></div><div><b>Esperando el pago con QR</b><br><span class="money">${fmt(p.monto)}</span><br><span class="tiny muted">Simulado: con Mercado Pago conectado, el aviso llega solo.</span></div></div>
+      <div class="row"><button class="primary" data-eq-qrok="${x.id}">Simular pago recibido</button><button data-eq-cancelpago>Cancelar</button></div>`;
+  else if (p) cuerpo = `<form id="eqCobroForm" class="stack" style="gap:10px">${x.modo === 'minuto' ? `<label>Minutos<input id="eqc_min" type="number" min="1" step="1" value="${p.minutos}"></label>` : ''}
+      <div class="chips" role="group" aria-label="Medio de pago">${['QR Mercado Pago', ...MEDIOS.filter(m => m !== 'QR Mercado Pago')].map(md => `<button type="button" class="chip" data-eq-medio="${md}" aria-pressed="${p.medio === md}">${md}</button>`).join('')}</div>
+      <div class="row"><button class="primary" type="submit">Cobrar ${fmt(precioEq(x, p.minutos))} y activar</button><button type="button" data-eq-cancelpago>Cancelar</button></div></form>`;
+  else cuerpo = `<p class="money" style="font-size:20px;margin:0">${fmt(x.precio)} <span class="tiny muted">${x.modo === 'minuto' ? 'por minuto' : 'por uso · ' + (x.minutos || 30) + ' min'}</span></p>
+      <div class="row"><button class="primary" data-eq-cobrar="${x.id}" ${!t || m.tipo === 'desc' ? 'disabled' : ''}>Cobrar y activar</button><button class="small" data-eq-fuera="${x.id}">Fuera de servicio</button></div>`;
+  return `<article class="panel eqcard ${estado === 'en_uso' ? 'on' : ''}"><div class="row" style="justify-content:space-between"><div><b class="eqname">${esc(x.nombre)}</b><br><span class="tiny muted">${esc(x.tipo || '')}${x.ubicacion ? ' · ' + esc(x.ubicacion) : ''}</span></div><div class="stack" style="gap:4px;align-items:flex-end">${est}${modTag}</div></div>
+    ${alerta}<div class="stack" style="gap:10px;margin-top:12px">${cuerpo}</div>
+    <div class="row tiny muted" style="justify-content:space-between;margin-top:12px;border-top:1px solid var(--line);padding-top:8px"><span>Hoy: ${nUsos} usos · <span class="money">${fmt(recaudado)}</span></span>${estado !== 'en_uso' ? `<button class="small" data-eq-editar="${x.id}">Editar</button>` : ''}</div></article>`;
+}
+
+function vConectar() {
+  return `<div class="grid2"><section class="panel"><h2>Cómo conectar una máquina</h2>
+    <ol class="pasos">
+      <li><b>Armar el módulo.</b> Cada máquina lleva una plaquita ESP32 con un relé, en una caja cerrada. Los materiales y las conexiones están en la <a href="${GUIA_URL}" target="_blank" rel="noopener">guía de la parte física</a>.</li>
+      <li><b>Conectarlo a la máquina.</b> El módulo habilita la máquina con un relé: queda apagada hasta que entra el pago y se corta sola al terminar el tiempo. Lo que va a 220 V lo instala un electricista matriculado.</li>
+      <li><b>Cargar el programa.</b> Con la compu y el cable USB se carga el firmware del módulo y se configuran el Wi-Fi y la dirección del servidor.</li>
+      <li><b>Agregar la máquina acá.</b> En <a href="#equipos" data-eq-tab="maquinas">Máquinas</a>, tocá "Agregar equipo" y poné nombre, precio y duración.</li>
+      <li><b>Vincular.</b> En la tarjeta de la máquina tocá "Vincular módulo". Aparece un código de 6 dígitos que vence en 10 minutos; se escribe en el módulo y listo.</li>
+      <li><b>Cobrar con QR.</b> El cliente paga con el QR de Mercado Pago, en pesos. Cuando el pago entra, el servidor le da la orden al módulo y la máquina arranca.</li>
+      <li><b>Probar.</b> Cobrá un uso: la máquina tiene que encenderse y apagarse sola al terminar el tiempo.</li>
+    </ol></section>
+    <section class="stack"><div class="panel"><h2>Qué controla el sistema</h2>
+      <ul class="pasos"><li>Cada módulo tiene su propia clave: solo obedece a nuestro servidor.</li><li>El tiempo lo cuenta el módulo: si se corta internet, igual apaga a tiempo.</li><li>Un mismo pago no puede encender dos veces.</li><li>Avisa si la máquina funciona sin pago o si abren la caja del módulo.</li><li>Si el módulo deja de responder, la máquina no se puede cobrar.</li></ul></div>
+    <div class="panel"><h2>Antes de instalar en clientes</h2><p class="muted" style="margin:0">Probá primero con un módulo en la mesa y un foquito, y después una semana en una sola máquina. Los pasos están en la <a href="${GUIA_URL}" target="_blank" rel="noopener">guía</a>.</p></div></section></div>`;
+}
+
+function vAlertas({ sinModulo, desconectados }) {
+  const filas = [
+    ...desconectados.map(x => ({ cuando: '', equipo: x.nombre, texto: 'El módulo no responde', clase: 'bad' })),
+    ...sinModulo.map(x => ({ cuando: '', equipo: x.nombre, texto: 'Sin módulo físico: cobrar no enciende la máquina', clase: 'warn' })),
+    ...S.srvAlertas.map(a => { const x = S.equipos.find(e => e.servidorId === a.equipo_id); return { cuando: fecha(a.ts), equipo: x ? x.nombre : 'Equipo ' + a.equipo_id, texto: ({ uso_sin_pago: 'Funcionó sin un pago registrado', tapa_abierta: 'Abrieron la caja del módulo', firma_invalida: 'Alguien intentó hablar en nombre del módulo', pedido_repetido: 'Se rechazó un pedido repetido' })[a.tipo] || a.detalle || a.tipo, clase: 'bad' }; })
+  ];
+  return `<section class="panel"><h2>Alertas</h2>${filas.length ? `<div class="tablebox"><table><thead><tr><th>Cuándo</th><th>Equipo</th><th>Qué pasó</th></tr></thead><tbody>${filas.map(f => `<tr><td class="num">${f.cuando || 'Ahora'}</td><td>${esc(f.equipo)}</td><td><span class="tag ${f.clase}">${esc(f.texto)}</span></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Todo en orden: todas las máquinas tienen su módulo conectado y no hubo avisos.</p>'}</section>`;
+}
+
+function vServidor() {
+  const est = !srvListo() ? '<span class="pill off">Sin configurar</span>' : S.srvOk ? '<span class="pill ok">Conectado</span>' : S.srvOk === false ? '<span class="pill bad">Sin conexión</span>' : '<span class="pill off">Probando…</span>';
+  return `<div class="grid2"><section class="panel"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Servidor de módulos</h2>${est}</div>
+    <p class="muted">Es el programa que habla con los módulos de las máquinas. La dirección y la clave se guardan solo en este navegador.</p>
+    <form id="srvForm" class="form"><label class="full">Dirección del servidor<input id="srv_url" placeholder="https://mi-servidor.com" value="${esc(S.srv.url)}" autocomplete="off"></label>
+    <label class="full">Clave de administrador<input id="srv_token" type="password" value="${esc(S.srv.token)}" autocomplete="off"></label>
+    <div class="row full"><button class="primary" type="submit">Guardar y probar</button>${srvListo() ? '<button type="button" data-srv-borrar>Olvidar servidor</button>' : ''}</div></form>
+    ${S.srvOk === false ? `<p class="notice bad" style="margin-top:12px">${esc(S.srvError)}</p>` : ''}</section>
+    <section class="panel"><h2>Dónde funciona</h2><ul class="pasos">
+      <li>En la página de GitHub o abriendo la app desde el propio servidor (<code>/app</code>), con el servidor en internet y con HTTPS.</li>
+      <li>En la versión de prueba dentro de Claude no se puede conectar a otro servidor: ahí las máquinas quedan sin módulo.</li>
+      <li>Para probar en la compu sin placa, está el módulo simulado (ver <code>modulos/README.md</code> en el repo).</li></ul></section></div>`;
+}
+
 async function guardarEquipo() {
   const v = id => document.getElementById(id).value;
   const nombre = v('eq_nombre').trim();
   if (!nombre) return toast('Falta el nombre del equipo');
   if (!(Number(v('eq_precio')) > 0)) return toast('Falta el precio');
   const data = { nombre, tipo: v('eq_tipo'), ubicacion: v('eq_ubic').trim(), modo: v('eq_modo'), precio: r2(v('eq_precio')), minutos: Math.max(1, Math.round(Number(v('eq_min')) || 30)), activo: true };
-  if (S.eqEdit) await S.db.doc('equipos/' + S.eqEdit).update(data);
-  else await S.db.collection('equipos').add({ ...data, estado: 'libre', creado: Date.now() });
+  if (S.eqEdit) {
+    await S.db.doc('equipos/' + S.eqEdit).update(data);
+    const x = eq(S.eqEdit);
+    if (x && x.servidorId && srvListo()) { try { await api('PATCH', '/api/equipos/' + x.servidorId, { nombre: data.nombre, modo: data.modo, precio: data.precio, minutos: data.minutos }); } catch (e) { toast('Guardado en la app, pero no en el servidor: ' + e.message); } }
+  } else await S.db.collection('equipos').add({ ...data, estado: 'libre', creado: Date.now() });
   toast((S.eqEdit ? 'Guardado: ' : 'Agregado: ') + nombre); S.eqEdit = null; S.eqNuevo = false; render();
+}
+async function asegurarEnServidor(x) {
+  if (x.servidorId && S.srvEquipos[x.servidorId]) return x.servidorId;
+  const sv = await api('POST', '/api/equipos', { nombre: x.nombre, modo: x.modo, precio: x.precio, minutos: x.minutos || 30 });
+  await S.db.doc('equipos/' + x.id).update({ servidorId: sv.id });
+  x.servidorId = sv.id; S.srvEquipos[sv.id] = sv;
+  return sv.id;
+}
+async function pedirCodigo(id) {
+  const x = eq(id); if (!x) return;
+  try {
+    const sid = await asegurarEnServidor(x);
+    const c = await api('POST', '/api/equipos/' + sid + '/codigo');
+    const sv = S.srvEquipos[sid];
+    S.vinculo = { id, codigo: c.codigo, expira: c.expira_ms, moduloAntes: sv && sv.modulo ? sv.modulo.id : null };
+    render(); window.scrollTo({ top: 0 });
+  } catch (e) { toast(e.message); }
 }
 async function activarEquipo(id) {
   const x = eq(id), p = S.eqPago, t = turnoAbierto();
-  if (!x || !p || !t || x.estado !== 'libre') return;
+  if (!x || !p || !t || estadoEq(x).estado !== 'libre') return;
+  const m = modulo(x);
   const min = x.modo === 'minuto' ? p.minutos : (x.minutos || 30);
   const monto = precioEq(x, min);
-  const numero = (S.contadores.venta || 0) + 1, ts = Date.now();
+  const ts = Date.now(), ref = 'APP-' + ts.toString(36) + '-' + Math.random().toString(36).slice(2, 7);
   try {
+    if (m.tipo === 'desc') throw new Error('El módulo no responde: no se cobró');
+    let real = false;
+    if (m.tipo === 'ok') { await api('POST', '/api/equipos/' + x.servidorId + '/activar', { pago_ref: ref, medio: p.medio, monto, minutos: x.modo === 'minuto' ? min : null }); real = true; }
+    const numero = (S.contadores.venta || 0) + 1;
     await S.db.doc('config/contadores').set({ ...S.contadores, venta: numero });
-    const ref = await S.db.collection('ventas').add({ numero, ts, equipoId: id, items: [{ productoId: 'equipo:' + id, nombre: x.nombre + (x.modo === 'minuto' ? ` · ${min} min` : ' · 1 uso'), cant: 1, precio: monto, costo: 0 }], total: monto, costo: 0, pago: p.medio, turnoId: t.id, anulada: false });
-    await S.db.doc('equipos/' + id).update({ estado: 'en_uso', inicio: ts, fin: ts + min * 60000, monto, ventaId: ref.id });
-    S.eqPago = null; toast(x.nombre + ' activado por ' + min + ' min'); render();
-  } catch (e) { fallo(e); }
+    const v = await S.db.collection('ventas').add({ numero, ts, equipoId: id, pagoRef: ref, encendidoReal: real, items: [{ productoId: 'equipo:' + id, nombre: x.nombre + (x.modo === 'minuto' ? ` · ${min} min` : ' · 1 uso'), cant: 1, precio: monto, costo: 0 }], total: monto, costo: 0, pago: p.medio, turnoId: t.id, anulada: false });
+    if (!real) await S.db.doc('equipos/' + id).update({ estado: 'en_uso', inicio: ts, fin: ts + min * 60000, monto, ventaId: v.id });
+    S.eqPago = null; toast(real ? x.nombre + ': orden de encendido enviada' : x.nombre + ': venta registrada (sin módulo físico)'); render();
+    if (real) setTimeout(sincronizar, 2500);
+  } catch (e) { toast(e.message || 'No se pudo cobrar'); }
 }
 async function liberarEquipo(id, motivo) {
-  const x = eq(id); if (!x || x.estado !== 'en_uso') return;
+  const x = eq(id); if (!x) return;
+  if (modulo(x).sv && modulo(x).sv.modulo) { try { await api('POST', '/api/equipos/' + x.servidorId + '/detener'); toast('Orden de apagado enviada'); setTimeout(sincronizar, 2500); } catch (e) { toast(e.message); } return; }
+  if (x.estado !== 'en_uso') return;
   x.estado = 'libre';
   try { await S.db.doc('equipos/' + id).update({ estado: 'libre', fin: 0, ultimoFin: Date.now() }); if (motivo) toast(motivo); render(); } catch (e) { fallo(e); }
 }
+async function cambiarServicio(id) {
+  const x = eq(id); if (!x) return;
+  const fuera = estadoEq(x).estado !== 'fuera';
+  try {
+    if (modulo(x).sv) await api('POST', '/api/equipos/' + x.servidorId + '/servicio', { fuera });
+    await S.db.doc('equipos/' + id).update({ estado: fuera ? 'fuera' : 'libre' });
+    if (modulo(x).sv) await sincronizar(); else render();
+  } catch (e) { toast(e.message); }
+}
 setInterval(() => {
-  S.equipos.forEach(x => { if (x.estado === 'en_uso' && x.fin && x.fin <= Date.now() && S.db) liberarEquipo(x.id, x.nombre + ' terminó y quedó libre'); });
-  document.querySelectorAll('.countdown').forEach(el => { el.textContent = mmss(Math.max(0, Number(el.dataset.fin) - Date.now())); });
+  S.equipos.forEach(x => { if (!(modulo(x).sv && modulo(x).sv.modulo) && x.estado === 'en_uso' && x.fin && x.fin <= Date.now() && S.db) liberarEquipo(x.id, x.nombre + ' terminó y quedó libre'); });
+  document.querySelectorAll('.countdown,.countdown-sm').forEach(el => { el.textContent = mmss(Math.max(0, Number(el.dataset.fin) - Date.now())); });
 }, 1000);
 
 // ----- Caja -----
@@ -502,7 +644,7 @@ async function anular(id) {
 
 // ---------- eventos ----------
 document.addEventListener('click', e => {
-  const b = e.target.closest('button,tr[data-edit]'); if (!b) return;
+  const b = e.target.closest('button,tr[data-edit],a[data-eq-tab]'); if (!b) return;
   const d = b.dataset;
   if (d.add) agregar(d.add);
   else if (d.del) { S.carrito.splice(Number(d.del), 1); render(); }
@@ -511,16 +653,22 @@ document.addEventListener('click', e => {
   else if (d.edit) { S.editId = d.edit; S.prodForm = null; S.confirm = null; render(); window.scrollTo({ top: 0 }); }
   else if (d.anular) { S.confirm = { tipo: 'anular', id: d.anular }; render(); }
   else if ('cancel' in d) { S.confirm = null; render(); }
+  else if (d.eqTab) { e.preventDefault(); S.eqTab = d.eqTab; if (location.hash !== '#equipos') location.hash = 'equipos'; render(); }
   else if (d.eqNuevo !== undefined) { S.eqNuevo = true; S.eqEdit = null; render(); }
   else if (d.eqEditar) { S.eqEdit = d.eqEditar; S.eqNuevo = false; render(); window.scrollTo({ top: 0 }); }
   else if (d.eqCancel !== undefined) { S.eqEdit = null; S.eqNuevo = false; render(); }
   else if (d.eqBaja !== undefined) { const id = S.eqEdit; S.db.doc('equipos/' + id).update({ activo: false }).then(() => { S.eqEdit = null; toast('Equipo dado de baja'); render(); }, fallo); }
+  else if (d.eqDesvincular !== undefined) { const x = eq(S.eqEdit); api('POST', '/api/equipos/' + x.servidorId + '/desvincular').then(() => { toast('Módulo quitado'); sincronizar(); }, er => toast(er.message)); }
+  else if (d.eqVincular) pedirCodigo(d.eqVincular);
+  else if (d.eqNuevocodigo) pedirCodigo(d.eqNuevocodigo);
+  else if (d.eqCerrarvinculo !== undefined) { S.vinculo = null; render(); }
+  else if (d.srvBorrar !== undefined) { S.srv = { url: '', token: '' }; try { localStorage.removeItem('milenium-servidor'); } catch (er) {} S.srvEquipos = {}; S.srvAlertas = []; S.srvOk = null; render(); }
   else if (d.eqCobrar) { const x = eq(d.eqCobrar); S.eqPago = { id: d.eqCobrar, medio: 'QR Mercado Pago', minutos: x && x.minutos || 30 }; render(); }
   else if (d.eqMedio) { S.eqPago.medio = d.eqMedio; const m = $('#eqc_min'); if (m) S.eqPago.minutos = Math.max(1, Math.round(Number(m.value) || 1)); render(); }
   else if (d.eqCancelpago !== undefined) { S.eqPago = null; render(); }
   else if (d.eqQrok) activarEquipo(d.eqQrok);
   else if (d.eqDetener) liberarEquipo(d.eqDetener, 'Equipo detenido');
-  else if (d.eqFuera) { const x = eq(d.eqFuera); S.db.doc('equipos/' + x.id).update({ estado: x.estado === 'fuera' ? 'libre' : 'fuera' }).then(render, fallo); }
+  else if (d.eqFuera) cambiarServicio(d.eqFuera);
   else if (b.id === 'cobrar') cobrar();
   else if (b.id === 'vaciar') { S.carrito = []; render(); }
   else if (b.id === 'cancelEdit') { S.editId = null; S.prodForm = null; S.confirm = null; render(); }
@@ -557,7 +705,8 @@ document.addEventListener('submit', async e => {
   if (!S.db) return toast('Los datos todavía no están disponibles');
   const id = e.target.id;
   try {
-    if (id === 'equipoForm') await guardarEquipo();
+    if (id === 'srvForm') { S.srv = { url: $('#srv_url').value.trim().replace(/\/$/, ''), token: $('#srv_token').value.trim() }; try { localStorage.setItem('milenium-servidor', JSON.stringify(S.srv)); } catch (er) {} S.srvOk = null; render(); await sincronizar(); toast(S.srvOk ? 'Servidor conectado' : 'No se pudo conectar: ' + S.srvError); }
+    else if (id === 'equipoForm') await guardarEquipo();
     else if (id === 'eqCobroForm') { const x = eq(S.eqPago.id); const m = $('#eqc_min'); if (m) S.eqPago.minutos = Math.max(1, Math.round(Number(m.value) || 1)); S.eqPago.monto = precioEq(x, S.eqPago.minutos); if (S.eqPago.medio === 'QR Mercado Pago') { S.eqPago.esperandoQR = true; render(); } else await activarEquipo(x.id); }
     else if (id === 'prodForm') await guardarProducto();
     else if (id === 'compraForm') await registrarCompra();
@@ -623,7 +772,7 @@ function localDB() {
     const ej = [['Agua mineral 500 ml', '7790001000011', 'Bebidas', 450, 800, 48, 12], ['Gaseosa cola 1,5 L', '7790001000028', 'Bebidas', 1500, 2600, 24, 6], ['Alfajor triple chocolate', '7790001000035', 'Golosinas', 600, 1100, 60, 20], ['Cargador de celular USB-C', '7790001000066', 'Accesorios', 5000, 9500, 8, 3], ['Hielo en bolsa 2 kg', '7790001000059', 'Varios', 800, 1800, 15, 5]];
     data.productos = {};
     ej.forEach(([nombre, cod, rubro, costo, precio, stock, minimo], i) => data.productos['ej' + (i + 1)] = { nombre, codigos: [cod], rubro, iva: 21, costo, precio, stock, minimo, controlaStock: true, porPeso: false, activo: true, ejemplo: true, creado: Date.now() });
-    data.equipos = { eq1: { nombre: 'Lavarropas 1', tipo: 'Lavarropas', ubicacion: 'Lavadero', modo: 'uso', precio: 3500, minutos: 40, estado: 'libre', activo: true, ejemplo: true }, eq2: { nombre: 'Cafetera de autoservicio', tipo: 'Cafetera', ubicacion: 'Shop', modo: 'uso', precio: 2200, minutos: 1, estado: 'libre', activo: true, ejemplo: true }, eq3: { nombre: 'Aspiradora boxes', tipo: 'Aspiradora', ubicacion: 'Lavadero de autos', modo: 'minuto', precio: 500, minutos: 5, estado: 'libre', activo: true, ejemplo: true } };
+    data.equipos = {};
     try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { return null; }
   }
   return { collection: coll, doc: docRef };
