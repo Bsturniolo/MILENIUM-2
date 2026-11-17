@@ -28,5 +28,10 @@ def firma_orden(secreto_hex: str, orden_id: int, accion: str, segundos: int, exp
     return _hmac(secreto_hex, f"{orden_id}|{accion}|{segundos}|{expira_ms}")
 
 
+def firma_tienda(clave: str, cuerpo: bytes) -> str:
+    """Firma de un pedido de la tienda web: HMAC-SHA256 (hex) del cuerpo tal cual se manda."""
+    return hmac.new(clave.encode(), cuerpo, hashlib.sha256).hexdigest()
+
+
 def iguales(a: str, b: str) -> bool:
     return hmac.compare_digest(a or "", b or "")

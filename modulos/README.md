@@ -26,7 +26,7 @@ Sistema propio para que las máquinas (lavarropas, cafeteras, aspiradoras, etc.)
 cd modulos/servidor
 python -m venv .venv && source .venv/bin/activate   # en Windows: .venv\Scripts\activate
 pip install -r requirements.txt -r requirements-dev.txt
-pytest -q                                            # 16 pruebas de punta a punta
+pytest -q                                            # 21 pruebas de punta a punta
 MILENIUM_ADMIN_TOKEN=cambiar-por-un-token-largo uvicorn app:app --reload
 ```
 
@@ -68,6 +68,8 @@ El servidor solo acepta pedidos de la app desde la página de GitHub y desde la 
 | `POST /api/equipos/{id}/detener` · `/servicio` · `/desvincular` | App | Apagar, poner fuera de servicio, quitar el módulo |
 | `GET /api/eventos?solo_alertas=true` | App | Historial y alertas |
 | `POST /api/pagos/simulado` | App | Simula el aviso de Mercado Pago (temporal) |
+| `POST /tienda/pedido` | Tienda web | Pedido pagado, firmado con la clave de la tienda (ver `docs/TIENDA-WEB.md`) |
+| `GET /api/ventas-web` · `POST /api/ventas-web/{id}/registrar` · `/simulada` | App | Traer pedidos web, marcarlos como registrados, simular uno |
 | `POST /modulo/vincular` | Módulo | Primera conexión con el código |
 | `GET /modulo/ordenes` · `POST /modulo/reporte` | Módulo | Pedidos firmados: órdenes, latidos, inicio, fin y alertas |
 

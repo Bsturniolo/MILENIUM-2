@@ -13,6 +13,7 @@ Toma las ideas de un sistema de gestión de estaciones de servicio de los años 
 | Sección | Qué se puede hacer |
 | --- | --- |
 | Vender | Buscar por nombre o escanear código de barras, armar el ticket, elegir medio de pago (efectivo con vuelto, débito, crédito, transferencia, QR Mercado Pago) y cobrar. Elegir cliente, guardar presupuesto o hacer remito a cuenta corriente |
+| Ventas | Todas las ventas (mostrador, tienda web y equipos) con total pagado, detalle por venta y filtros. Las ventas de la tienda web entran solas y descuentan stock (ver [docs/TIENDA-WEB.md](docs/TIENDA-WEB.md)) |
 | Productos | Alta, edición y baja; varios códigos de barra por producto, rubro, costo, precio, IVA, stock mínimo, venta por peso |
 | Stock | Ajustes de inventario con motivo, productos para reponer y kardex de movimientos |
 | Clientes | Clientes con CUIT/DNI y límite de crédito; cuenta corriente (remitos suman, pagos restan); presupuestos (pasan al ticket) y remitos, con impresión y anulación |

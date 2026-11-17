@@ -99,6 +99,15 @@ CREATE TABLE IF NOT EXISTS eventos (
   detalle TEXT NOT NULL DEFAULT '',
   alerta INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS ventas_web (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pedido_id TEXT NOT NULL UNIQUE,
+  ts INTEGER NOT NULL,
+  datos TEXT NOT NULL,
+  total REAL NOT NULL,
+  estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','registrada')),
+  registrada_ts INTEGER
+);
 """
 
 
@@ -165,6 +174,30 @@ class Reporte(BaseModel):
     detalle: str = Field(default="", max_length=200)
 
 
+class ItemWeb(BaseModel):
+    codigo: str = Field(default="", max_length=60)      # código de barras o SKU, igual que en la app
+    nombre: str = Field(min_length=1, max_length=160)
+    cantidad: float = Field(gt=0, le=100000)
+    precio: float = Field(ge=0)                         # precio unitario cobrado
+
+
+class ClienteWeb(BaseModel):
+    nombre: str = Field(default="", max_length=120)
+    email: str = Field(default="", max_length=160)
+    telefono: str = Field(default="", max_length=40)
+
+
+class PedidoWeb(BaseModel):
+    pedido_id: str = Field(min_length=1, max_length=80, pattern=r"^[A-Za-z0-9_.:-]+$")
+    fecha_ms: Optional[int] = None
+    items: list[ItemWeb] = Field(min_length=1, max_length=200)
+    total: float = Field(ge=0)
+    envio: float = Field(default=0, ge=0)
+    descuento: float = Field(default=0, ge=0)
+    medio_pago: str = Field(default="Tienda web", max_length=60)
+    cliente: ClienteWeb = Field(default_factory=ClienteWeb)
+
+
 class PagoSimulado(BaseModel):
     equipo_id: int
     monto: float = Field(ge=0)
@@ -172,11 +205,13 @@ class PagoSimulado(BaseModel):
 
 
 # ---------------------------------------------------------------- app
-def crear_app(ruta_base: str | None = None, token_admin: str | None = None) -> FastAPI:
+def crear_app(ruta_base: str | None = None, token_admin: str | None = None, secreto_tienda: str | None = None) -> FastAPI:
     base = Base(ruta_base or os.environ.get("MILENIUM_DB", "milenium.db"))
     token = token_admin or os.environ.get("MILENIUM_ADMIN_TOKEN", "")
     if len(token) < 16:
         raise RuntimeError("Definí MILENIUM_ADMIN_TOKEN con al menos 16 caracteres")
+    # Clave compartida con la tienda web para firmar cada pedido. Sin clave, la tienda no puede mandar pedidos.
+    clave_tienda = secreto_tienda if secreto_tienda is not None else os.environ.get("MILENIUM_TIENDA_SECRETO", "")
 
     app = FastAPI(title="Milenium 2 · módulos")
     app.state.base = base
@@ -358,6 +393,61 @@ def crear_app(ruta_base: str | None = None, token_admin: str | None = None) -> F
     def pago_simulado(d: PagoSimulado):
         ref = "SIM-" + secrets.token_hex(6)
         return {"pago_ref": ref, **_activar(d.equipo_id, ref, "QR Mercado Pago (simulado)", d.monto, d.minutos)}
+
+    # ---------- tienda web: cada pedido pagado entra acá y la app lo registra como venta
+    def guardar_pedido(p: PedidoWeb) -> dict:
+        datos = p.model_dump()
+        datos["fecha_ms"] = p.fecha_ms or ahora_ms()
+        try:
+            i = base.ejec("INSERT INTO ventas_web (pedido_id, ts, datos, total) VALUES (?,?,?,?)",
+                          (p.pedido_id, datos["fecha_ms"], json.dumps(datos), p.total))
+        except sqlite3.IntegrityError:  # el mismo pedido mandado dos veces no se cuenta dos veces
+            v = base.uno("SELECT id FROM ventas_web WHERE pedido_id = ?", (p.pedido_id,))
+            return {"ok": True, "id": v["id"], "repetido": True}
+        return {"ok": True, "id": i, "repetido": False}
+
+    def vista_venta_web(v) -> dict:
+        return {"id": v["id"], "pedido_id": v["pedido_id"], "ts": v["ts"], "total": v["total"], "estado": v["estado"],
+                "registrada_ts": v["registrada_ts"], **{k: x for k, x in json.loads(v["datos"]).items() if k not in ("pedido_id", "total")}}
+
+    @app.post("/tienda/pedido")
+    async def pedido_tienda(request: Request, x_firma: str = Header(default="")):
+        """La tienda llama acá cuando un pedido queda PAGADO. Firma: HMAC-SHA256 del cuerpo con la clave de la tienda."""
+        if len(clave_tienda) < 16:
+            raise HTTPException(503, "La tienda web todavía no está configurada en el servidor")
+        cuerpo = await request.body()
+        if not firmas.iguales(x_firma, firmas.firma_tienda(clave_tienda, cuerpo)):
+            base.evento(None, "firma_tienda_invalida", "Pedido de la tienda con firma incorrecta", alerta=True)
+            raise HTTPException(401, "Firma inválida")
+        try:
+            p = PedidoWeb.model_validate_json(cuerpo)
+        except Exception as e:
+            raise HTTPException(422, f"Pedido mal armado: {e}")
+        return guardar_pedido(p)
+
+    @app.get("/api/ventas-web", dependencies=[Depends(admin)])
+    def ventas_web(estado: Optional[str] = None, limite: int = 200):
+        if estado and estado not in ("pendiente", "registrada"):
+            raise HTTPException(422, "Estado inválido")
+        sql = "SELECT * FROM ventas_web" + (" WHERE estado = ?" if estado else "") + " ORDER BY id DESC LIMIT ?"
+        return [vista_venta_web(v) for v in base.q(sql, ((estado,) if estado else ()) + (min(max(limite, 1), 1000),))]
+
+    @app.post("/api/ventas-web/{venta_id}/registrar", dependencies=[Depends(admin)])
+    def registrar_venta_web(venta_id: int):
+        """La app avisa que ya descontó el stock. Solo una app puede tomarla: la segunda recibe 409."""
+        with base.lock:
+            cur = base.con.execute("UPDATE ventas_web SET estado = 'registrada', registrada_ts = ? WHERE id = ? AND estado = 'pendiente'",
+                                   (ahora_ms(), venta_id))
+        if cur.rowcount == 0:
+            if not base.uno("SELECT 1 FROM ventas_web WHERE id = ?", (venta_id,)):
+                raise HTTPException(404, "No existe esa venta")
+            raise HTTPException(409, "Esa venta ya fue registrada")
+        return vista_venta_web(base.uno("SELECT * FROM ventas_web WHERE id = ?", (venta_id,)))
+
+    @app.post("/api/ventas-web/simulada", dependencies=[Depends(admin)])
+    def venta_web_simulada(p: PedidoWeb):
+        """Para probar sin tienda: crea un pedido pagado como si viniera de la web."""
+        return guardar_pedido(p)
 
     # ---------- rutas del módulo
     @app.post("/modulo/vincular")

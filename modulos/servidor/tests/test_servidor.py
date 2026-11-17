@@ -194,3 +194,54 @@ def test_cors_solo_para_la_pagina_y_la_compu(c):
     assert local.headers.get("access-control-allow-origin") == "http://localhost:5500"
     otro = c.options("/api/equipos", headers={"Origin": "https://sitio-cualquiera.com", **pre})
     assert "access-control-allow-origin" not in otro.headers
+
+
+# ---------- tienda web
+CLAVE_TIENDA = "clave-de-la-tienda-1234567890"
+
+
+@pytest.fixture
+def ct(tmp_path):
+    return TestClient(servidor.crear_app(str(tmp_path / "t.db"), TOKEN, CLAVE_TIENDA))
+
+
+def pedido(pid="W-1001", **k):
+    return {"pedido_id": pid, "items": [{"codigo": "7790001000011", "nombre": "Agua", "cantidad": 2, "precio": 800}],
+            "total": 1600, "medio_pago": "Mercado Pago", "cliente": {"nombre": "Ana"}, **k}
+
+
+def mandar(c, datos, clave=CLAVE_TIENDA):
+    import json
+    cuerpo = json.dumps(datos).encode()
+    return c.post("/tienda/pedido", content=cuerpo, headers={"Content-Type": "application/json", "X-Firma": firmas.firma_tienda(clave, cuerpo)})
+
+
+def test_pedido_web_entra_una_sola_vez(ct):
+    r = mandar(ct, pedido())
+    assert r.status_code == 200 and not r.json()["repetido"]
+    assert mandar(ct, pedido()).json()["repetido"]  # la tienda reintenta: no se duplica
+    lista = ct.get("/api/ventas-web?estado=pendiente", headers=ADMIN).json()
+    assert len(lista) == 1 and lista[0]["total"] == 1600 and lista[0]["items"][0]["codigo"] == "7790001000011"
+
+
+def test_pedido_web_con_firma_falsa_se_rechaza(ct):
+    assert mandar(ct, pedido(), clave="otra-clave-cualquiera-123").status_code == 401
+    assert ct.get("/api/ventas-web", headers=ADMIN).json() == []
+    assert "firma_tienda_invalida" in [a["tipo"] for a in ct.get("/api/eventos?solo_alertas=true", headers=ADMIN).json()]
+
+
+def test_sin_clave_de_tienda_no_acepta_pedidos(c):
+    assert mandar(c, pedido()).status_code == 503
+
+
+def test_venta_web_se_registra_una_sola_vez(ct):
+    i = mandar(ct, pedido()).json()["id"]
+    assert ct.post(f"/api/ventas-web/{i}/registrar", headers=ADMIN).json()["estado"] == "registrada"
+    assert ct.post(f"/api/ventas-web/{i}/registrar", headers=ADMIN).status_code == 409  # otra compu no la cuenta de nuevo
+    assert ct.get("/api/ventas-web?estado=pendiente", headers=ADMIN).json() == []
+    assert ct.post(f"/api/ventas-web/{i}/registrar").status_code == 401
+
+
+def test_venta_web_simulada(ct):
+    r = ct.post("/api/ventas-web/simulada", json=pedido("SIM-1"), headers=ADMIN)
+    assert r.status_code == 200 and ct.get("/api/ventas-web", headers=ADMIN).json()[0]["pedido_id"] == "SIM-1"

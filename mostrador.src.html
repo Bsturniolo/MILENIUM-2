@@ -135,12 +135,12 @@ tr.sel td{background:var(--accent-soft,rgba(0,0,0,.05))}
     <div class="row"><span id="estadoTurno" class="pill off">Cargando…</span><span id="estadoDatos" class="tiny muted"></span></div>
   </header>
   <nav class="tabs" aria-label="Secciones">
-    <a href="#vender">Vender</a><a href="#productos">Productos</a><a href="#stock">Stock</a><a href="#clientes">Clientes</a><a href="#compras">Compras</a><a href="#equipos">Equipos</a><a href="#caja">Caja</a><a href="#reportes">Reportes</a>
+    <a href="#vender">Vender</a><a href="#ventas">Ventas</a><a href="#productos">Productos</a><a href="#stock">Stock</a><a href="#clientes">Clientes</a><a href="#compras">Compras</a><a href="#equipos">Equipos</a><a href="#caja">Caja</a><a href="#reportes">Reportes</a>
   </nav>
   <div id="aviso"></div>
   <main id="vista"></main>
 </div>
-<footer class="tiny muted" style="text-align:center;padding:0 16px 24px">Milenium 2 · versión 17/11/2026 b (diseño Neptuno)</footer>
+<footer class="tiny muted" style="text-align:center;padding:0 16px 24px">Milenium 2 · versión 17/11/2026 c (ventas web)</footer>
 <div id="toast" hidden></div>
 <div id="imprimir"></div>
 
@@ -148,7 +148,7 @@ tr.sel td{background:var(--accent-soft,rgba(0,0,0,.05))}
 (() => {
 'use strict';
 // ---------- estado ----------
-const S = { equipos: [], eqPago: null, eqEdit: null, eqNuevo: false, productos: [], ventas: [], movs: [], turnos: [], contadores: {}, carrito: [], pago: 'Efectivo', buscar: '', filtroProd: '', kardexProd: '', rango: 'hoy', editId: null, confirm: null, loaded: false, db: null, prodForm: null, clientes: [], ctacte: [], presupuestos: [], remitos: [], proveedores: [], compras: [], ctaprov: [], clienteVenta: '', presupuestoOrigen: null, cliTab: 'clientes', cliSel: null, cliEdit: null, filtroCli: '', cprTab: 'nueva', compraLineas: [], compraCab: { prov: '', comp: '', pago: 'A cuenta corriente' }, provSel: null, provEdit: null };
+const S = { equipos: [], eqPago: null, eqEdit: null, eqNuevo: false, productos: [], ventas: [], movs: [], turnos: [], contadores: {}, carrito: [], pago: 'Efectivo', buscar: '', filtroProd: '', kardexProd: '', rango: 'hoy', editId: null, confirm: null, loaded: false, db: null, prodForm: null, clientes: [], ctacte: [], presupuestos: [], remitos: [], proveedores: [], compras: [], ctaprov: [], clienteVenta: '', presupuestoOrigen: null, cliTab: 'clientes', cliSel: null, cliEdit: null, filtroCli: '', cprTab: 'nueva', compraLineas: [], compraCab: { prov: '', comp: '', pago: 'A cuenta corriente' }, provSel: null, provEdit: null, vRango: 'hoy', vOrigen: 'todas', ventaSel: null, webReintentar: [], webUltima: 0, webError: '' };
 const MEDIOS = ['Efectivo', 'Débito', 'Crédito', 'Transferencia', 'QR Mercado Pago'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -163,7 +163,7 @@ const turnoAbierto = () => S.turnos.find(t => t.estado === 'abierto');
 const activos = () => S.productos.filter(p => p.activo !== false).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 
 // ---------- vistas ----------
-const vistas = ['vender', 'productos', 'stock', 'clientes', 'compras', 'equipos', 'caja', 'reportes'];
+const vistas = ['vender', 'ventas', 'productos', 'stock', 'clientes', 'compras', 'equipos', 'caja', 'reportes'];
 const vistaActual = () => { const h = location.hash.slice(1); return vistas.includes(h) ? h : 'vender'; };
 
 function render() {
@@ -182,7 +182,7 @@ function dibujar() {
   else { et.className = 'pill off'; et.textContent = 'Caja cerrada'; }
   const focused = document.activeElement && document.activeElement.id;
   const caret = focused && document.activeElement.selectionStart;
-  $('#vista').innerHTML = ({ vender: vVender, productos: vProductos, stock: vStock, clientes: vClientes, compras: vCompras, equipos: vEquipos, caja: vCaja, reportes: vReportes })[v]();
+  $('#vista').innerHTML = ({ vender: vVender, ventas: vVentas, productos: vProductos, stock: vStock, clientes: vClientes, compras: vCompras, equipos: vEquipos, caja: vCaja, reportes: vReportes })[v]();
   if (focused) {
     const el = document.getElementById(focused);
     if (el) {
@@ -374,7 +374,7 @@ function vStock() {
   <section class="panel" style="margin-top:16px"><div class="row" style="justify-content:space-between;margin-bottom:10px"><h2 style="margin:0">Movimientos de stock (kardex)</h2>
     <select id="kardexProd" style="max-width:280px" aria-label="Filtrar por producto"><option value="">Todos los productos</option>${opts(S.kardexProd)}</select></div>
     ${movs.length ? `<div class="tablebox"><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Producto</th><th class="r">Entrada</th><th class="r">Salida</th><th class="r">Saldo</th><th>Detalle</th></tr></thead><tbody>
-    ${movs.flatMap(m => (m.lineas || []).filter(l => !S.kardexProd || l.productoId === S.kardexProd).map(l => `<tr><td class="num">${fecha(m.ts)}</td><td><span class="tag ${m.tipo === 'Venta' ? 'acc' : m.tipo === 'Ingreso' ? 'good' : m.tipo.startsWith('Ajuste') ? 'warn' : ''}">${esc(m.tipo)}</span></td><td>${esc(l.nombre)}</td>
+    ${movs.flatMap(m => (m.lineas || []).filter(l => !S.kardexProd || l.productoId === S.kardexProd).map(l => `<tr><td class="num">${fecha(m.ts)}</td><td><span class="tag ${m.tipo.startsWith('Venta') ? 'acc' : m.tipo === 'Ingreso' ? 'good' : m.tipo.startsWith('Ajuste') ? 'warn' : ''}">${esc(m.tipo)}</span></td><td>${esc(l.nombre)}</td>
       <td class="r num">${l.cant > 0 ? fq(l.cant) : ''}</td><td class="r num">${l.cant < 0 ? fq(-l.cant) : ''}</td><td class="r num">${fq(l.saldo)}</td><td class="tiny muted">${esc(m.detalle)}</td></tr>`)).join('')}
     </tbody></table></div>` : '<div class="empty">Cada venta, ingreso o ajuste queda anotado acá con su motivo.</div>'}
   </section>`;
@@ -416,8 +416,9 @@ async function sincronizar() {
     S.srvOk = true; S.srvError = '';
     if (S.vinculo) { const x = eq(S.vinculo.id); const sv = x && S.srvEquipos[x.servidorId]; if (sv && sv.modulo && sv.modulo.conectado && (!S.vinculo.moduloAntes || sv.modulo.id !== S.vinculo.moduloAntes)) { toast('Módulo vinculado a ' + x.nombre); S.vinculo = null; } }
   } catch (e) { S.srvOk = false; S.srvError = e.message; }
+  await traerVentasWeb();
   const activo = document.activeElement;
-  if (vistaActual() === 'equipos' && !(activo && activo.matches('input,select'))) render();
+  if ((vistaActual() === 'equipos' || vistaActual() === 'ventas') && !(activo && activo.matches('input,select'))) render();
 }
 setInterval(sincronizar, 5000);
 setTimeout(sincronizar, 300);
@@ -847,6 +848,80 @@ function vProveedores() {
       : `<div class="empty">${S.loaded ? 'Todavía no hay proveedores.' : 'Cargando…'}</div>`}</section>${der}</div>`;
 }
 
+// ----- Ventas: todas las ventas (mostrador, tienda web y equipos) -----
+const origenVenta = v => v.origen === 'web' ? 'web' : v.equipoId ? 'equipo' : 'mostrador';
+const ORIGEN = { mostrador: ['Mostrador', 'acc'], web: ['Tienda web', 'good'], equipo: ['Equipo', 'warn'] };
+const buscarProductoWeb = i => activos().find(p => i.codigo && (p.codigos || []).includes(String(i.codigo))) || activos().find(p => p.nombre.trim().toLowerCase() === String(i.nombre).trim().toLowerCase());
+
+// Trae de la web los pedidos pagados y los registra como venta: descuenta stock y guarda el total pagado.
+async function traerVentasWeb() {
+  if (!srvListo() || !S.db || !S.loaded || S.webOcupado) return;
+  S.webOcupado = true;
+  try {
+    const pend = (await api('GET', '/api/ventas-web?estado=pendiente')).reverse();
+    S.webUltima = Date.now(); S.webError = '';
+    const nuevos = [...S.webReintentar.splice(0), ...pend];
+    for (const v of nuevos) {
+      if (!v._tomada) {
+        try { await api('POST', '/api/ventas-web/' + v.id + '/registrar'); } catch (e) { continue; }  // ya la registró otra compu
+        v._tomada = true;
+      }
+      if (S.ventas.some(x => x.pedidoId === v.pedido_id)) continue;
+      try { await registrarVentaWeb(v); } catch (e) { S.webReintentar.push(v); console.error(e); }
+    }
+  } catch (e) { S.webError = e.message; }
+  finally { S.webOcupado = false; }
+}
+async function registrarVentaWeb(v) {
+  const items = v.items.map(i => { const p = buscarProductoWeb(i); return { productoId: p ? p.id : '', nombre: p ? p.nombre : i.nombre, codigo: i.codigo || '', cant: r3(i.cantidad), precio: r2(i.precio), costo: p ? r2(p.costo) : 0, sinProducto: !p }; });
+  const numero = await siguiente('venta'), ts = v.fecha_ms || v.ts || Date.now();
+  const c = v.cliente || {};
+  const ref = await S.db.collection('ventas').add({ numero, ts, items, total: r2(v.total), costo: sumar(items, 'costo'), pago: v.medio_pago || 'Tienda web', origen: 'web', pedidoId: v.pedido_id, envio: r2(v.envio), descuento: r2(v.descuento), clienteNombre: c.nombre || '', clienteEmail: c.email || '', clienteTel: c.telefono || '', turnoId: '', anulada: false });
+  S.ventas.unshift({ id: ref.id, numero, ts, items, total: r2(v.total), origen: 'web', pedidoId: v.pedido_id, pago: v.medio_pago });
+  await moverStock(items.filter(i => i.productoId).map(i => ({ productoId: i.productoId, nombre: i.nombre, cant: -i.cant })), 'Venta web', 'Pedido web ' + v.pedido_id, ref.id, ts);
+  toast(`Venta de la tienda web: ${fmt(v.total)}${items.some(i => i.sinProducto) ? ' (hay productos que no están cargados)' : ''}`);
+}
+async function simularVentaWeb() {
+  const ps = activos().filter(p => (p.codigos || []).length).sort(() => Math.random() - .5).slice(0, 2);
+  if (!ps.length) return toast('Cargá algún producto con código para simular');
+  const items = ps.map(p => ({ codigo: p.codigos[0], nombre: p.nombre, cantidad: 1 + Math.floor(Math.random() * 3), precio: r2(p.precio) }));
+  try {
+    await api('POST', '/api/ventas-web/simulada', { pedido_id: 'SIM-' + Date.now().toString(36), items, total: r2(items.reduce((s, i) => s + i.precio * i.cantidad, 0)), medio_pago: 'Mercado Pago', cliente: { nombre: 'Cliente de prueba' } });
+    toast('Pedido de prueba enviado; llega en unos segundos'); sincronizar();
+  } catch (e) { toast(e.message); }
+}
+
+function vVentas() {
+  const ahora = new Date(), ini = new Date(ahora); ini.setHours(0, 0, 0, 0);
+  if (S.vRango === '7d') ini.setDate(ini.getDate() - 6);
+  if (S.vRango === 'mes') ini.setDate(1);
+  const delPeriodo = S.ventas.filter(v => v.ts >= ini.getTime());
+  const vs = delPeriodo.filter(v => S.vOrigen === 'todas' || origenVenta(v) === S.vOrigen);
+  const ok = vs.filter(v => !v.anulada);
+  const tot = arr => r2(arr.filter(v => !v.anulada).reduce((s, v) => s + v.total, 0));
+  const porOrigen = o => tot(delPeriodo.filter(v => origenVenta(v) === o));
+  const sinProd = ok.filter(v => (v.items || []).some(i => i.sinProducto));
+  const web = !srvListo() ? `<div class="notice" style="margin-bottom:14px">Para que entren solas las ventas de la tienda web, conectá el servidor en <a href="#equipos" data-eq-tab="servidor">Equipos → Servidor</a>. Mientras tanto acá ves las ventas del mostrador y de los equipos.</div>`
+    : `<div class="panel row" style="justify-content:space-between;margin-bottom:14px;padding:12px 16px"><span>${S.webError ? `<span class="pill bad">Sin conexión con la tienda</span> <span class="tiny muted">${esc(S.webError)}</span>` : `<span class="pill ok">Conectado con la tienda web</span> <span class="tiny muted">${S.webUltima ? 'Revisado ' + new Date(S.webUltima).toLocaleTimeString('es-AR') : 'Revisando…'} · se revisa cada 5 segundos</span>`}</span><button class="small" id="simularWeb">Simular venta web</button></div>`;
+  const abierta = S.ventaSel && vs.find(v => v.id === S.ventaSel);
+  return `${web}<div class="row" style="justify-content:space-between;margin-bottom:14px"><div class="chips" role="group" aria-label="Período">${[['hoy', 'Hoy'], ['7d', 'Últimos 7 días'], ['mes', 'Este mes']].map(([k, l]) => `<button class="chip" data-v-rango="${k}" aria-pressed="${S.vRango === k}">${l}</button>`).join('')}</div>
+    <div class="chips" role="group" aria-label="Origen">${[['todas', 'Todas'], ['mostrador', 'Mostrador'], ['web', 'Tienda web'], ['equipo', 'Equipos']].map(([k, l]) => `<button class="chip" data-v-origen="${k}" aria-pressed="${S.vOrigen === k}">${l}</button>`).join('')}</div></div>
+  <div class="kpis"><div class="kpi"><span>Ventas</span><b>${ok.length}</b></div><div class="kpi"><span>Total pagado</span><b>${fmt(tot(vs))}</b></div><div class="kpi"><span>Mostrador</span><b>${fmt(porOrigen('mostrador'))}</b></div><div class="kpi"><span>Tienda web</span><b>${fmt(porOrigen('web'))}</b></div></div>
+  ${sinProd.length ? `<div class="notice" style="margin-bottom:14px">${sinProd.length === 1 ? 'Una venta web tiene' : sinProd.length + ' ventas web tienen'} productos que no están cargados en la app (no se descontó su stock). Cargalos en <a href="#productos">Productos</a> con el mismo código que en la tienda.</div>` : ''}
+  <div class="grid2"><section class="panel"><h2>Ventas</h2>${vs.length ? `<div class="tablebox"><table><thead><tr><th>N°</th><th>Fecha</th><th>Origen</th><th>Pago</th><th class="r">Total</th></tr></thead><tbody>
+    ${vs.slice(0, 200).map(v => { const [ol, oc] = ORIGEN[origenVenta(v)]; return `<tr class="click${S.ventaSel === v.id ? ' sel' : ''}" data-venta-ver="${v.id}" tabindex="0"><td class="num">${v.numero}</td><td class="num">${fecha(v.ts)}<br><span class="tiny muted">${esc((v.items || []).map(i => fq(i.cant) + ' ' + i.nombre).join(', '))}</span></td><td><span class="tag ${oc}">${ol}</span>${(v.items || []).some(i => i.sinProducto) ? ' <span class="tag bad">revisar</span>' : ''}</td><td>${esc(v.pago)}</td><td class="r money">${v.anulada ? `<s>${fmt(v.total)}</s>` : fmt(v.total)}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty">No hay ventas en este período.</div>'}</section>
+  <section class="panel">${abierta ? vDetalleVenta(abierta) : '<h2>Detalle</h2><p class="muted">Tocá una venta para ver qué se vendió, a qué precio y cómo se pagó.</p>'}</section></div>`;
+}
+function vDetalleVenta(v) {
+  const [ol, oc] = ORIGEN[origenVenta(v)];
+  const sub = r2((v.items || []).reduce((s, i) => s + i.precio * i.cant, 0));
+  return `<h2>Venta N° ${v.numero}</h2><p class="tiny muted" style="margin-top:-6px"><span class="tag ${oc}">${ol}</span> ${fecha(v.ts)}${v.pedidoId ? ' · Pedido ' + esc(v.pedidoId) : ''}${v.anulada ? ' · <span class="tag bad">anulada</span>' : ''}</p>
+    ${v.clienteNombre || v.clienteEmail ? `<p style="margin:0 0 10px"><b>${esc(v.clienteNombre || 'Cliente')}</b>${v.clienteEmail ? '<br><span class="tiny muted">' + esc(v.clienteEmail) + '</span>' : ''}${v.clienteTel ? '<br><span class="tiny muted">' + esc(v.clienteTel) + '</span>' : ''}</p>` : ''}
+    <div class="tablebox"><table><thead><tr><th>Producto</th><th class="r">Cant.</th><th class="r">Precio</th><th class="r">Importe</th></tr></thead><tbody>${(v.items || []).map(i => `<tr><td>${esc(i.nombre)}${i.sinProducto ? ' <span class="tag bad">no está cargado</span>' : ''}${i.codigo ? `<br><span class="tiny muted num">${esc(i.codigo)}</span>` : ''}</td><td class="r num">${fq(i.cant)}</td><td class="r money">${fmt(i.precio)}</td><td class="r money">${fmt(i.precio * i.cant)}</td></tr>`).join('')}</tbody></table></div>
+    <table style="margin-top:10px"><tbody><tr><td>Productos</td><td class="r money">${fmt(sub)}</td></tr>${v.envio ? `<tr><td>Envío</td><td class="r money">${fmt(v.envio)}</td></tr>` : ''}${v.descuento ? `<tr><td>Descuento</td><td class="r money">− ${fmt(v.descuento)}</td></tr>` : ''}
+      <tr><td><b>Total pagado</b> · ${esc(v.pago)}</td><td class="r money"><b>${fmt(v.total)}</b></td></tr>${v.costo != null ? `<tr><td class="muted">Ganancia (sin envío)</td><td class="r money muted">${fmt(sub - (v.costo || 0) - (v.descuento || 0))}</td></tr>` : ''}</tbody></table>`;
+}
+
 // ----- Caja -----
 function resumenTurno(t) {
   const vs = S.ventas.filter(v => v.turnoId === t.id && !v.anulada);
@@ -919,7 +994,7 @@ async function anular(id) {
 
 // ---------- eventos ----------
 document.addEventListener('click', e => {
-  const b = e.target.closest('button,tr[data-edit],tr[data-cli-ver],tr[data-prov-ver],a[data-eq-tab],a[data-cpr-tab]'); if (!b) return;
+  const b = e.target.closest('button,tr[data-edit],tr[data-cli-ver],tr[data-prov-ver],tr[data-venta-ver],a[data-eq-tab],a[data-cpr-tab]'); if (!b) return;
   const d = b.dataset;
   if (d.add) agregar(d.add);
   else if (d.del) { S.carrito.splice(Number(d.del), 1); render(); }
@@ -944,6 +1019,10 @@ document.addEventListener('click', e => {
   else if (d.eqQrok) activarEquipo(d.eqQrok);
   else if (d.eqDetener) liberarEquipo(d.eqDetener, 'Equipo detenido');
   else if (d.eqFuera) cambiarServicio(d.eqFuera);
+  else if (d.vRango) { S.vRango = d.vRango; render(); }
+  else if (d.vOrigen) { S.vOrigen = d.vOrigen; render(); }
+  else if (d.ventaVer) { S.ventaSel = S.ventaSel === d.ventaVer ? null : d.ventaVer; render(); }
+  else if (b.id === 'simularWeb') simularVentaWeb();
   else if (d.cliTab) { S.cliTab = d.cliTab; S.confirm = null; render(); }
   else if (d.cliVer) { S.cliSel = d.cliVer; S.cliEdit = null; render(); }
   else if (d.cliNuevo !== undefined) { S.cliEdit = 'nuevo'; render(); }
@@ -982,7 +1061,7 @@ document.addEventListener('keydown', e => {
     const res = exacto ? [exacto] : buscarProductos(q);
     if (res.length === 1) agregar(res[0].id); else if (!res.length) toast('No encontré "' + q + '"');
   }
-  if (e.key === 'Enter' && e.target.matches('tr[data-edit],tr[data-cli-ver],tr[data-prov-ver]')) e.target.click();
+  if (e.key === 'Enter' && e.target.matches('tr[data-edit],tr[data-cli-ver],tr[data-prov-ver],tr[data-venta-ver]')) e.target.click();
 });
 document.addEventListener('input', e => {
   const t = e.target;
