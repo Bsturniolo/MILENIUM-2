@@ -140,7 +140,7 @@ tr.sel td{background:var(--accent-soft,rgba(0,0,0,.05))}
   <div id="aviso"></div>
   <main id="vista"></main>
 </div>
-<footer class="tiny muted" style="text-align:center;padding:0 16px 24px">Milenium 2 · versión 17/11/2026 (diseño Neptuno)</footer>
+<footer class="tiny muted" style="text-align:center;padding:0 16px 24px">Milenium 2 · versión 17/11/2026 b (diseño Neptuno)</footer>
 <div id="toast" hidden></div>
 <div id="imprimir"></div>
 
@@ -183,8 +183,21 @@ function dibujar() {
   const focused = document.activeElement && document.activeElement.id;
   const caret = focused && document.activeElement.selectionStart;
   $('#vista').innerHTML = ({ vender: vVender, productos: vProductos, stock: vStock, clientes: vClientes, compras: vCompras, equipos: vEquipos, caja: vCaja, reportes: vReportes })[v]();
-  if (focused) { const el = document.getElementById(focused); if (el) { el.focus(); try { if (caret != null) el.setSelectionRange(caret, caret); } catch (e) {} } }
+  if (focused) {
+    const el = document.getElementById(focused);
+    if (el) {
+      el.focus();
+      // Los campos de número no guardan la posición del cursor: se deja al final para que se escriba de izquierda a derecha.
+      if (el.type === 'number') { const v = el.value; if (v !== '') { el.value = ''; el.value = v; } }
+      else try { if (caret != null) el.setSelectionRange(caret, caret); } catch (e) {}
+    }
+  }
 }
+
+// Textos que cambian mientras se escribe un número (se actualizan solos, sin redibujar el formulario).
+const txtVuelto = (pagaCon, total) => pagaCon > total ? fmt(pagaCon - total) : '—';
+function txtMargen(f) { const m = Number(f.costo) > 0 && Number(f.precio) > 0 ? Math.round((Number(f.precio) / Number(f.costo) - 1) * 100) : null; return m != null ? `Ganancia sobre el costo: <b class="num">${m} %</b>` : 'Cargá costo y precio para ver la ganancia.'; }
+const txtDif = dif => dif == null ? '<span class="muted tiny">Escribí lo contado para ver si sobra o falta.</span>' : dif === 0 ? '<span class="pill ok">Caja justa</span>' : dif > 0 ? `<span class="pill off">Sobran ${fmt(dif)}</span>` : `<span class="pill bad">Faltan ${fmt(-dif)}</span>`;
 
 // ----- Vender -----
 function buscarProductos(q) {
@@ -224,7 +237,7 @@ function vVender() {
       <label>Cliente<select id="ventaCli"><option value="">Consumidor final</option>${clientesActivos().map(c => `<option value="${c.id}" ${S.clienteVenta === c.id ? 'selected' : ''}>${esc(c.nombre)}</option>`).join('')}</select></label>
       ${S.clienteVenta && cli(S.clienteVenta) ? `<span class="tiny muted" style="margin-top:-6px">Debe ${fmt(Math.max(0, saldoCli(S.clienteVenta)))}${cli(S.clienteVenta).limite > 0 ? ' · límite ' + fmt(cli(S.clienteVenta).limite) : ''}</span>` : ''}
       <div class="chips" role="group" aria-label="Medio de pago">${MEDIOS.map(m => `<button class="chip" data-pago="${m}" aria-pressed="${S.pago === m}">${m}</button>`).join('')}</div>
-      ${S.pago === 'Efectivo' ? `<div class="row"><label style="flex:1">Paga con<input id="pagaCon" type="number" min="0" step="0.01" inputmode="decimal" value="${pagaCon || ''}"></label><div style="flex:1"><span class="tiny muted">Vuelto</span><div class="money" style="font-size:20px">${pagaCon > total ? fmt(pagaCon - total) : '—'}</div></div></div>` : ''}
+      ${S.pago === 'Efectivo' ? `<div class="row"><label style="flex:1">Paga con<input id="pagaCon" type="number" min="0" step="0.01" inputmode="decimal" value="${pagaCon || ''}"></label><div style="flex:1"><span class="tiny muted">Vuelto</span><div id="vueltoTxt" class="money" style="font-size:20px">${txtVuelto(pagaCon, total)}</div></div></div>` : ''}
       ${!t && S.loaded ? '<div class="notice">Para cobrar, primero abrí la caja en la pestaña <a href="#caja">Caja</a>.</div>' : ''}
       <button class="primary big" id="cobrar" ${!S.carrito.length || !t ? 'disabled' : ''}>Cobrar ${S.carrito.length ? fmt(total) : ''}</button>
       ${S.carrito.length ? `<div class="row"><button id="guardarPresu">Guardar presupuesto</button><button id="hacerRemito" ${!S.clienteVenta ? 'disabled title="Elegí el cliente"' : ''}>Remito a cuenta corriente</button></div><button id="vaciar">Cancelar venta</button>` : ''}
@@ -297,7 +310,7 @@ function vProductos() {
       <label>IVA<select id="pf_iva">${[21, 10.5, 27, 0].map(x => `<option value="${x}" ${Number(f.iva) === x ? 'selected' : ''}>${String(x).replace('.', ',')} %</option>`).join('')}</select></label>
       <label>Costo ($)<input id="pf_costo" type="number" min="0" step="0.01" inputmode="decimal" value="${esc(f.costo)}"></label>
       <label>Precio de venta ($)<input id="pf_precio" type="number" min="0" step="0.01" inputmode="decimal" required value="${esc(f.precio)}"></label>
-      <div class="full tiny muted">${margen != null ? `Ganancia sobre el costo: <b class="num">${margen} %</b>` : 'Cargá costo y precio para ver la ganancia.'}</div>
+      <div id="margenTxt" class="full tiny muted">${txtMargen(f)}</div>
       ${e ? '' : `<label>Stock inicial<input id="pf_stock" type="number" min="0" step="0.001" value="${esc(f.stock)}"></label>`}
       <label>Stock mínimo<input id="pf_minimo" type="number" min="0" step="0.001" value="${esc(f.minimo)}"></label>
       <label class="check full"><input id="pf_controla" type="checkbox" ${f.controlaStock !== false ? 'checked' : ''}> Controla stock</label>
@@ -867,7 +880,7 @@ function vCaja() {
   </section>
   <section class="stack"><div class="panel"><h2>Cerrar turno</h2><p class="muted" style="margin-top:-6px">Contá el efectivo de la caja y anotalo. El sistema calcula la diferencia.</p>
     <form id="cerrarForm" class="form"><label class="full">Efectivo contado ($)<input id="ci_cont" type="number" min="0" step="0.01" inputmode="decimal" value="${esc(contado ?? '')}" required></label>
-    <div class="full">${dif == null ? '<span class="muted tiny">Escribí lo contado para ver si sobra o falta.</span>' : dif === 0 ? '<span class="pill ok">Caja justa</span>' : dif > 0 ? `<span class="pill off">Sobran ${fmt(dif)}</span>` : `<span class="pill bad">Faltan ${fmt(-dif)}</span>`}</div>
+    <div id="difTxt" class="full">${txtDif(dif)}</div>
     <div class="full"><button class="primary" type="submit">Cerrar turno</button></div></form></div>${vCerrados(cerrados)}</section></div>`;
 }
 function vCerrados(lista) {
@@ -979,8 +992,9 @@ document.addEventListener('input', e => {
   else if (t.id === 'filtroProd') { S.filtroProd = t.value; S.prodForm = $('#prodForm') ? leerForm() : null; render(); }
   else if (t.dataset.qty) { const i = S.carrito[Number(t.dataset.qty)]; if (i) { i.cant = Math.max(0, i.porPeso ? r3(t.value) : Math.round(Number(t.value) || 0)); } }
   else if (t.id === 'eqc_min') { S.eqPago.minutos = Math.max(1, Math.round(Number(t.value) || 1)); const b = document.querySelector('#eqCobroForm button[type=submit]'); const x = eq(S.eqPago.id); if (b && x) b.textContent = 'Cobrar ' + fmt(precioEq(x, S.eqPago.minutos)) + ' y activar'; }
-  else if (t.id === 'pagaCon' || t.id === 'ci_cont') render();
-  else if (t.id === 'pf_costo' || t.id === 'pf_precio') { S.prodForm = leerForm(); render(); }
+  else if (t.id === 'pagaCon') { const el = $('#vueltoTxt'); if (el) el.textContent = txtVuelto(Number(t.value || 0), totales().total); }
+  else if (t.id === 'ci_cont') { const tu = turnoAbierto(), el = $('#difTxt'); if (tu && el) el.innerHTML = txtDif(t.value === '' ? null : r2(Number(t.value) - resumenTurno(tu).esperado)); }
+  else if (t.id === 'pf_costo' || t.id === 'pf_precio') { S.prodForm = leerForm(); const el = $('#margenTxt'); if (el) el.innerHTML = txtMargen(S.prodForm); }
 });
 document.addEventListener('change', e => {
   if (e.target.dataset.qty) render();
