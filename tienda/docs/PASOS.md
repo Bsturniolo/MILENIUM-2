@@ -69,6 +69,32 @@ Para actualizar cuando haya cambios: `cd MILENIUM-2 && git pull && cd tienda/dep
 2. Al volver, la tienda dice "¡Gracias por tu compra!" y en el panel el pedido aparece **Pagado · preparar**, con el stock descontado.
 3. Cambiá al Access Token **de producción** en el `.env` y corré `docker compose up -d`. Desde ahí cobra de verdad.
 
+## Poner el carrito en tu propia página
+
+La tienda se puede usar de dos maneras:
+
+- **Página propia de la tienda:** `https://mitienda.com.ar` (no hace falta nada más).
+- **Pegada en una página que ya tenés** (hecha a mano, con WordPress, Wix con código, etc.): ahí aparecen los productos y el carrito, con el diseño de tu página arriba y abajo.
+
+Para pegarla, en el lugar de tu página donde quieras los productos, agregá **una línea**:
+
+```html
+<script src="https://mitienda.com.ar/tienda.js" data-cabecera="no" defer></script>
+```
+
+- `data-cabecera="no"` saca el nombre y logo de la tienda (porque tu página ya tiene los suyos). Quedan el buscador y el botón del carrito.
+- En el `.env` del servidor, poné la dirección de tu página en `TIENDA_ORIGENES` (ej. `https://www.mipagina.com.ar`) y reiniciá con `docker compose up -d`. Sin eso, el navegador no deja que tu página hable con la tienda.
+- Después de pagar en Mercado Pago, el cliente **vuelve a tu página** y ve "¡Gracias por tu compra!".
+
+**Qué ve cada uno:**
+
+| Quién | Qué ve |
+| --- | --- |
+| El público (en la tienda o en tu página) | Productos, precios, carrito, su compra y su propio pedido. Nada más |
+| Vos, en `https://mitienda.com.ar/panel` con la clave | Ventas, pedidos, datos de los clientes (nombre, email, teléfono, dirección), productos, stock y configuración |
+
+El panel no aparece enlazado en ningún lado de la tienda, no lo indexa Google, y sin la clave no muestra nada: el servidor no entrega ventas ni datos de clientes sin ella. Cada cliente solo puede ver su propio pedido, con un código secreto que se le da al comprar.
+
 ## 5. (Opcional) Conectar con Milenium 2
 
 Así cada venta de la tienda queda también en Milenium 2, en la pestaña **Ventas**, y descuenta el stock allá.

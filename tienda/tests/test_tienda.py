@@ -268,3 +268,27 @@ def test_sincronizar_desde_otro_sistema(c):
     ps = {p["codigo"]: p for p in c.get("/api/panel/productos", headers=ADMIN).json()}
     assert ps["SKU1"]["precio"] == 1200 and ps["SKU1"]["stock"] == 9
     assert ps["NUEVO"]["visible"] is False  # los nuevos quedan ocultos hasta revisarlos
+
+
+def test_ventas_y_clientes_solo_con_clave(c):
+    p = producto(c)
+    comprar(c, p["id"])
+    for ruta in ("/api/panel/pedidos", "/api/panel/resumen", "/api/panel/config"):
+        assert c.get(ruta).status_code == 401
+    assert "Ana" not in c.get("/api/tienda").text
+
+
+def test_carrito_para_pegar_en_otra_pagina(tmp_path, monkeypatch):
+    monkeypatch.setenv("TIENDA_ORIGENES", "https://mipagina.com.ar")
+    mp = MPFalso()
+    c = nueva(tmp_path, mp=mp)
+    assert "attachShadow" in c.get("/tienda.js").text
+    r = c.options("/api/pedidos", headers={"Origin": "https://mipagina.com.ar", "Access-Control-Request-Method": "POST",
+                                           "Access-Control-Request-Headers": "content-type"})
+    assert r.headers.get("access-control-allow-origin") == "https://mipagina.com.ar"
+    p = producto(c, stock=10)
+    d = {"items": [{"producto_id": p["id"], "cantidad": 1}], "envio_id": "retiro", "cliente": CLIENTE}
+    c.post("/api/pedidos", json={**d, "volver": "https://mipagina.com.ar/tienda?x=1"})
+    assert mp.preferencias[-1][1] == "https://mipagina.com.ar/tienda"   # vuelve a tu página
+    c.post("/api/pedidos", json={**d, "volver": "https://sitio-trucho.com/"})
+    assert mp.preferencias[-1][1].startswith("http://testserver/")     # una página no autorizada no

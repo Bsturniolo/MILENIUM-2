@@ -232,6 +232,7 @@ class Cliente(BaseModel):
 
 
 class Compra(BaseModel):
+    volver: str = Field(default="", max_length=300)   # página desde donde se compró (si el carrito está pegado en otra página)
     items: list[ItemCompra] = Field(min_length=1, max_length=100)
     envio_id: str = Field(min_length=1, max_length=30)
     cliente: Cliente
@@ -437,6 +438,10 @@ def crear_app(ruta_base: str | None = None, *, admin_token: str | None = None, m
     def tienda():
         return FileResponse(WEB / "index.html", media_type="text/html")
 
+    @app.get("/tienda.js", include_in_schema=False)
+    def tienda_js():
+        return FileResponse(WEB / "tienda.js", media_type="text/javascript", headers={"Cache-Control": "no-cache"})
+
     @app.get("/panel", include_in_schema=False)
     def panel():
         return FileResponse(WEB / "panel.html", media_type="text/html")
@@ -497,9 +502,12 @@ def crear_app(ruta_base: str | None = None, *, admin_token: str | None = None, m
         pedido = {"numero": numero, "token": tk, "items": items, "envio": r2(envio["precio"]), "envio_nombre": envio["nombre"],
                   "total": total, "cliente": cliente}
         url_tienda = (url_publica or str(request.base_url).rstrip("/")) + "/"
+        # Si el carrito está pegado en otra página (autorizada en TIENDA_ORIGENES), después de pagar se vuelve ahí.
+        m = re.match(r"(https?://[^/?#]+)(/[^?#]*)?", d.volver.strip())
+        url_volver = (m.group(1) + (m.group(2) or "/")) if m and m.group(1) in origenes else url_tienda
         if mp:
             try:
-                pref = mp.crear_preferencia(pedido, url_tienda, url_tienda + "mp/aviso")
+                pref = mp.crear_preferencia(pedido, url_volver, url_tienda + "mp/aviso")
             except mp_mod.ErrorMP as e:
                 base.ejec("UPDATE pedidos SET estado = 'cancelado', modificado = ? WHERE numero = ?", (ahora_ms(), numero))
                 log.error("No se pudo crear el cobro del pedido %s: %s", numero, e)

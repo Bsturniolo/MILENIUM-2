@@ -17,6 +17,16 @@ Una tienda online con **carrito y cobro con Mercado Pago**, más un **panel** pa
 | Panel (`/panel`) | Inicio (vendido hoy y en 30 días, pedidos para preparar), pedidos (datos del cliente, dirección, marcar enviado/entregado/cancelado, WhatsApp al cliente), productos (fotos que se achican solas, precio, oferta, stock con motivo, visible/destacado) y configuración (nombre, color, cartel, WhatsApp, Instagram, formas de entrega, cómo pagar sin Mercado Pago) |
 | Conexión (opcional) | Cada pedido pagado se manda firmado a Milenium 2 (`/tienda/pedido`). Si no responde, reintenta solo cada minuto. También recibe precios y stock desde otro sistema (`PUT /api/panel/sincronizar`) |
 
+## Pegarla en otra página
+
+El público solo ve productos y carrito; las ventas y los datos de clientes quedan en `/panel`, con clave. Para poner los productos y el carrito dentro de una página que ya tenés, alcanza con una línea:
+
+```html
+<script src="https://mitienda.com.ar/tienda.js" data-cabecera="no" defer></script>
+```
+
+Detalle en [docs/PASOS.md](docs/PASOS.md#poner-el-carrito-en-tu-propia-página).
+
 ## Probarla en la compu
 
 1. Instalar **Python** 3.12 o 3.13 (en Windows, tildar "Add python.exe to PATH").
@@ -36,7 +46,8 @@ Copiá la carpeta `tienda/` entera. No depende del resto del repo (salvo una pru
 | --- | --- |
 | `servidor/app.py` | Servidor: tienda, pedidos, stock, panel y conexión con otro sistema |
 | `servidor/mercadopago.py` | Todo lo que habla con Mercado Pago |
-| `web/index.html` | La tienda (sin dependencias). Sin servidor funciona en modo demostración |
+| `web/tienda.js` | La tienda entera (catálogo, carrito, compra), sin dependencias. Se pega en cualquier página. Sin servidor funciona en modo demostración |
+| `web/index.html` | La página propia de la tienda (solo carga `tienda.js`) |
 | `web/panel.html` | El panel |
 | `tests/` | Pruebas con un Mercado Pago falso y Milenium 2 de verdad |
 | `Dockerfile` · `deploy/` | Para subirla a un servidor con HTTPS |
