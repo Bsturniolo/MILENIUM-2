@@ -109,6 +109,8 @@ header.top .pill.ok{background:#5ee0b42b;color:#8ff0c8} header.top .pill.off{bac
 header.top .muted{color:#c4d6f2}
 nav.tabs{margin-top:10px}
 nav.tabs a{border-radius:8px 8px 0 0}
+nav.tabs a.ext{margin-left:auto;color:var(--accent)}nav.tabs a.ext+a.ext{margin-left:0}
+@media (max-width:640px){nav.tabs{flex-wrap:wrap;overflow:visible}nav.tabs a{padding:8px 10px}nav.tabs a.ext{margin-left:0}}
 nav.tabs a:hover{color:var(--ink);background:color-mix(in srgb,var(--accent) 7%,transparent)}
 nav.tabs a[aria-current="page"]{color:var(--accent);border-bottom:3px solid transparent;border-image:linear-gradient(90deg,var(--accent),var(--teal)) 1}
 .panel,.ticket,.kpi{box-shadow:0 1px 2px #0e1a2c0d,0 6px 18px -12px #14306f33}
@@ -135,12 +137,12 @@ tr.sel td{background:var(--accent-soft,rgba(0,0,0,.05))}
     <div class="row"><span id="estadoTurno" class="pill off">Cargando…</span><span id="estadoDatos" class="tiny muted"></span></div>
   </header>
   <nav class="tabs" aria-label="Secciones">
-    <a href="#vender">Vender</a><a href="#ventas">Ventas</a><a href="#productos">Productos</a><a href="#stock">Stock</a><a href="#clientes">Clientes</a><a href="#compras">Compras</a><a href="#equipos">Equipos</a><a href="#caja">Caja</a><a href="#reportes">Reportes</a>
+    <a href="#vender">Vender</a><a href="#ventas">Ventas</a><a href="#productos">Productos</a><a href="#stock">Stock</a><a href="#clientes">Clientes</a><a href="#compras">Compras</a><a href="#equipos">Equipos</a><a href="#caja">Caja</a><a href="#reportes">Reportes</a><a class="ext" href="tienda/web/index.html" target="_blank" rel="noopener">Tienda web ↗</a><a class="ext" href="tienda/ejemplos/propuesta-b/index.html" target="_blank" rel="noopener">Propuesta B ↗</a>
   </nav>
   <div id="aviso"></div>
   <main id="vista"></main>
 </div>
-<footer class="tiny muted" style="text-align:center;padding:0 16px 24px">Milenium 2 · versión 23/11/2026 (tienda propia)</footer>
+<footer class="tiny muted" style="text-align:center;padding:0 16px 24px">Milenium 2 · versión 23/11/2026 b (botones a la tienda)</footer>
 <div id="toast" hidden></div>
 <div id="imprimir"></div>
 
