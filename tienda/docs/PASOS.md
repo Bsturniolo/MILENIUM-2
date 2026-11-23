@@ -86,6 +86,8 @@ Para pegarla, en el lugar de tu página donde quieras los productos, agregá **u
 - En el `.env` del servidor, poné la dirección de tu página en `TIENDA_ORIGENES` (ej. `https://www.mipagina.com.ar`) y reiniciá con `docker compose up -d`. Sin eso, el navegador no deja que tu página hable con la tienda.
 - Después de pagar en Mercado Pago, el cliente **vuelve a tu página** y ve "¡Gracias por tu compra!".
 
+**Si tu página ya tiene su propio diseño de productos** (como la propuesta B): usá `data-modo="carrito"`. Así nuestro sistema pone solo el carrito, la compra y el pago, y tu diseño dibuja los productos con los datos reales (precio, stock, fotos) y llama a `Tienda.agregar(...)` y `Tienda.abrirCarrito()`. Ejemplo completo: [`tienda/ejemplos/propuesta-b/`](../ejemplos/propuesta-b/index.html).
+
 **Qué ve cada uno:**
 
 | Quién | Qué ve |

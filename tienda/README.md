@@ -27,6 +27,8 @@ El público solo ve productos y carrito; las ventas y los datos de clientes qued
 
 Detalle en [docs/PASOS.md](docs/PASOS.md#poner-el-carrito-en-tu-propia-página).
 
+**Con un diseño propio** (la página dibuja sus productos a su manera y usa solo nuestro carrito y compra): `data-modo="carrito"`. Ejemplo armado con la propuesta ganadora: [`ejemplos/propuesta-b/`](ejemplos/propuesta-b/index.html) · [verla funcionando](https://bsturniolo.github.io/MILENIUM-2/tienda/ejemplos/propuesta-b/).
+
 ## Probarla en la compu
 
 1. Instalar **Python** 3.12 o 3.13 (en Windows, tildar "Add python.exe to PATH").
