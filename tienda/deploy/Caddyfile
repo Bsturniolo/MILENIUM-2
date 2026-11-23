@@ -1,0 +1,13 @@
+# Caddy saca y renueva solo el certificado HTTPS (Let's Encrypt) para el dominio.
+{$DOMINIO} {
+	encode gzip
+	request_body {
+		max_size 8MB
+	}
+	reverse_proxy tienda:8000
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+}

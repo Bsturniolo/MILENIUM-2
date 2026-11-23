@@ -1,6 +1,8 @@
 # Conectar la tienda web con Milenium 2
 
-> **Estado al 17/11/2026:** la conexión está hecha y probada con pedidos simulados. La tienda todavía no existe (la vamos a armar nosotros) y el servidor todavía no está en la nube.
+> **Estado al 23/11/2026:** ya existe la tienda propia, en la carpeta [`tienda/`](../tienda/README.md), y manda sus pedidos con este formato. Probado de punta a punta. El servidor todavía no está en la nube.
+>
+> Para conectarlas: [tienda/docs/PASOS.md → Conectar con Milenium 2](../tienda/docs/PASOS.md#5-opcional-conectar-con-milenium-2). Para probar sin servidor, abrí Milenium 2 y la [tienda de demostración](https://bsturniolo.github.io/MILENIUM-2/tienda/) en el mismo navegador: lo que compres aparece en **Ventas**.
 
 ## Cómo funciona
 
@@ -83,6 +85,6 @@ En **Ventas** está el botón **Simular venta web**: manda un pedido de prueba c
 
 ## Pendiente
 
-- Armar la tienda.
+- ~~Armar la tienda.~~ Hecha: [`tienda/`](../tienda/README.md).
 - Que la tienda lea el stock y los precios de Milenium 2 (para no vender lo que no hay).
 - Hoy los datos de la app quedan en cada navegador. Si van a usarla varias computadoras, conviene pasar también los datos de la app al servidor.

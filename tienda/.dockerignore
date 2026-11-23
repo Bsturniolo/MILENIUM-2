@@ -1,0 +1,6 @@
+.venv
+datos
+tests
+__pycache__
+*.db
+deploy/.env

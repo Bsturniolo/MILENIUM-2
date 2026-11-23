@@ -5,3 +5,6 @@ __pycache__/
 *.db
 .venv/
 deploy/.env
+tienda/datos/
+tienda/.venv/
+tienda/deploy/.env

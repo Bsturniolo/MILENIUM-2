@@ -29,6 +29,12 @@ Entrá a https://bsturniolo.github.io/MILENIUM-2/, o descargá `index.html` y ab
 - Fuera de Claude, los datos se guardan en el navegador (localStorage) de esa computadora. Arranca con 5 productos de ejemplo.
 - Publicado como Artifact en Claude, usa la base de datos compartida del Artifact.
 
+## Tienda online propia
+
+En [`tienda/`](tienda/README.md) hay una tienda online con carrito, cobro con Mercado Pago y panel para cargar productos con fotos y manejar pedidos. Funciona sola, o conectada a Milenium 2 para que cada venta web quede registrada acá. Es la alternativa casera a Tiendanube.
+
+👉 [Demostración](https://bsturniolo.github.io/MILENIUM-2/tienda/) · Costos y pasos para publicarla: [tienda/docs/PASOS.md](tienda/docs/PASOS.md)
+
 ## Módulos para las máquinas
 
 En `modulos/` está el sistema propio para encender las máquinas solo cuando se pagó: servidor, código para la placa ESP32 y un simulador.
@@ -47,6 +53,7 @@ El servidor está listo para subirse a la nube, pero todavía no se subió: paso
 | `modulos/` | Servidor, firmware y simulador de los módulos para máquinas |
 | `Dockerfile` · `deploy/` | Todo lo necesario para subir el servidor a la nube |
 | `docs/SUBIR-A-LA-NUBE.md` | Guía paso a paso para subirlo |
+| `tienda/` | Tienda online propia (carrito, Mercado Pago, panel); se copia sola a otro proyecto |
 
 ## Próximas etapas
 

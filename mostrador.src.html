@@ -140,7 +140,7 @@ tr.sel td{background:var(--accent-soft,rgba(0,0,0,.05))}
   <div id="aviso"></div>
   <main id="vista"></main>
 </div>
-<footer class="tiny muted" style="text-align:center;padding:0 16px 24px">Milenium 2 · versión 17/11/2026 c (ventas web)</footer>
+<footer class="tiny muted" style="text-align:center;padding:0 16px 24px">Milenium 2 · versión 23/11/2026 (tienda propia)</footer>
 <div id="toast" hidden></div>
 <div id="imprimir"></div>
 
@@ -408,6 +408,7 @@ async function api(metodo, ruta, datos) {
   return j;
 }
 async function sincronizar() {
+  await traerPedidosDemo();
   if (!srvListo()) { S.srvOk = null; return; }
   try {
     const lista = await api('GET', '/api/equipos');
@@ -872,6 +873,21 @@ async function traerVentasWeb() {
   } catch (e) { S.webError = e.message; }
   finally { S.webOcupado = false; }
 }
+// Tienda de demostración (tienda/ del repo, abierta en este mismo navegador sin servidor):
+// deja los pedidos pagados en localStorage y acá se registran como venta web.
+async function traerPedidosDemo() {
+  if (!S.local || !S.db || !S.loaded || S.demoOcupado) return;
+  let cola; try { cola = JSON.parse(localStorage.getItem('milenium-tienda-demo') || '[]'); } catch (e) { return; }
+  if (!cola.length) return;
+  S.demoOcupado = true;
+  try {
+    localStorage.setItem('milenium-tienda-demo', '[]');
+    for (const v of cola) { if (!S.ventas.some(x => x.pedidoId === v.pedido_id)) await registrarVentaWeb(v); }
+  } catch (e) { console.error(e); }
+  finally { S.demoOcupado = false; }
+  if (vistaActual() === 'ventas') render();
+}
+window.addEventListener('storage', e => { if (e.key === 'milenium-tienda-demo') traerPedidosDemo(); });
 async function registrarVentaWeb(v) {
   const items = v.items.map(i => { const p = buscarProductoWeb(i); return { productoId: p ? p.id : '', nombre: p ? p.nombre : i.nombre, codigo: i.codigo || '', cant: r3(i.cantidad), precio: r2(i.precio), costo: p ? r2(p.costo) : 0, sinProducto: !p }; });
   const numero = await siguiente('venta'), ts = v.fecha_ms || v.ts || Date.now();
@@ -901,7 +917,7 @@ function vVentas() {
   const tot = arr => r2(arr.filter(v => !v.anulada).reduce((s, v) => s + v.total, 0));
   const porOrigen = o => tot(delPeriodo.filter(v => origenVenta(v) === o));
   const sinProd = ok.filter(v => (v.items || []).some(i => i.sinProducto));
-  const web = !srvListo() ? `<div class="notice" style="margin-bottom:14px">Para que entren solas las ventas de la tienda web, conectá el servidor en <a href="#equipos" data-eq-tab="servidor">Equipos → Servidor</a>. Mientras tanto acá ves las ventas del mostrador y de los equipos.</div>`
+  const web = !srvListo() ? `<div class="notice" style="margin-bottom:14px">Para que entren solas las ventas de la tienda web, conectá el servidor en <a href="#equipos" data-eq-tab="servidor">Equipos → Servidor</a>. Mientras tanto acá ves las ventas del mostrador y de los equipos.${S.local ? ' <br>Para probar sin servidor: <a href="tienda/web/index.html" target="_blank" rel="noopener">abrí la tienda de prueba</a>, comprá algo y la venta aparece acá sola.' : ''}</div>`
     : `<div class="panel row" style="justify-content:space-between;margin-bottom:14px;padding:12px 16px"><span>${S.webError ? `<span class="pill bad">Sin conexión con la tienda</span> <span class="tiny muted">${esc(S.webError)}</span>` : `<span class="pill ok">Conectado con la tienda web</span> <span class="tiny muted">${S.webUltima ? 'Revisado ' + new Date(S.webUltima).toLocaleTimeString('es-AR') : 'Revisando…'} · se revisa cada 5 segundos</span>`}</span><button class="small" id="simularWeb">Simular venta web</button></div>`;
   const abierta = S.ventaSel && vs.find(v => v.id === S.ventaSel);
   return `${web}<div class="row" style="justify-content:space-between;margin-bottom:14px"><div class="chips" role="group" aria-label="Período">${[['hoy', 'Hoy'], ['7d', 'Últimos 7 días'], ['mes', 'Este mes']].map(([k, l]) => `<button class="chip" data-v-rango="${k}" aria-pressed="${S.vRango === k}">${l}</button>`).join('')}</div>
